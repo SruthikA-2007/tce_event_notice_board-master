@@ -1821,6 +1821,43 @@ iframe[title="Sign in with Google Button"] {
     margin-right: 8px;
 }
 
+/* Notice Delete Button */
+.notice-card {
+    position: relative;
+}
+
+.notice-delete-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    color: #e53e3e;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.notice-card:hover .notice-delete-btn {
+    opacity: 1;
+    visibility: visible;
+}
+
+.notice-delete-btn:hover {
+    background: #e53e3e;
+    color: white;
+    transform: scale(1.1);
+}
+
 /* Volunteer Requests Container */
 .volunteer-requests-container {
     margin-top: 20px;

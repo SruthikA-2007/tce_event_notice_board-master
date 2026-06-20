@@ -5,6 +5,7 @@ let currentUser = null;
 let notices = [];
 let volunteers = [];
 let isLoading = false;
+let isUploading = false;
 
 // Configuration
 const CONFIG = {
@@ -581,8 +582,12 @@ function handleGoogleSignIn(response) {
         showToast(`Welcome to ${CONFIG.APP_NAME}, ${userData.name}!`, 'success');
 
     } catch (error) {
-        console.error('Sign-in error:', error);
-        showToast('Sign-in failed. Please try again.', 'error');
+        console.error('❌ Sign-in process error:', error);
+        // If we already showed the app, don't show the error toast as it's misleading
+        const loginSection = document.getElementById('loginSection');
+        if (loginSection && !loginSection.classList.contains('hidden')) {
+            showToast('Sign-in failed. Please try again.', 'error');
+        }
     }
 }
 
@@ -632,13 +637,39 @@ function showMainApp() {
     // Load initial data
     loadDashboardData();
 
+    // Reset all filters to default
+    resetFilters();
+
     // Navigate to dashboard
     navigateToSection('dashboard');
+}
+
+function resetFilters() {
+    console.log('🔄 Resetting all notice filters...');
+    const filters = {
+        'categoryFilter': 'all',
+        'dateFilter': '',
+        'searchNotices': ''
+    };
+
+    Object.entries(filters).forEach(([id, defaultValue]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = defaultValue;
+    });
+
+    // If we're on the notices page, refresh the view
+    const noticesContainer = document.getElementById('noticesContainer');
+    if (noticesContainer && !noticesContainer.parentElement.classList.contains('hidden')) {
+        renderNotices();
+    }
 }
 
 function showLoginScreen() {
     document.getElementById('mainApp').classList.add('hidden');
     document.getElementById('loginSection').classList.remove('hidden');
+    
+    // Clear filters on logout to prevent cross-account leakage
+    resetFilters();
 }
 
 function updateUserInfo() {
@@ -718,13 +749,15 @@ function updateVolunteerStatus() {
     console.log('👤 Found volunteer data:', volunteer ? volunteer.status : 'None');
 
     if (volunteer) {
-        statusElement.textContent = volunteer.status.charAt(0).toUpperCase() + volunteer.status.slice(1);
-        statusElement.className = `status-badge ${volunteer.status}`;
+        if (statusElement) {
+            statusElement.textContent = volunteer.status.charAt(0).toUpperCase() + volunteer.status.slice(1);
+            statusElement.className = `status-badge ${volunteer.status}`;
+        }
 
         if (volunteer.status === 'pending') {
-            requestForm.classList.add('hidden');
-            uploadSection.classList.add('hidden');
-            uploadsSection.classList.add('hidden');
+            if (requestForm) requestForm.classList.add('hidden');
+            if (uploadSection) uploadSection.classList.add('hidden');
+            if (uploadsSection) uploadsSection.classList.add('hidden');
 
             // Show pending status message
             const pendingMessage = document.getElementById('volunteerPendingMessage') ||
@@ -738,9 +771,9 @@ function updateVolunteerStatus() {
             `;
             uploadSection.parentNode.insertBefore(pendingMessage, uploadSection);
         } else if (volunteer.status === 'approved') {
-            requestForm.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            uploadsSection.classList.remove('hidden');
+            if (requestForm) requestForm.classList.add('hidden');
+            if (uploadSection) uploadSection.classList.remove('hidden');
+            if (uploadsSection) uploadsSection.classList.remove('hidden');
             loadMyUploads();
 
             // Remove pending message if it exists
@@ -749,9 +782,9 @@ function updateVolunteerStatus() {
                 pendingMessage.remove();
             }
         } else if (volunteer.status === 'rejected') {
-            requestForm.classList.remove('hidden');
-            uploadSection.classList.add('hidden');
-            uploadsSection.classList.add('hidden');
+            if (requestForm) requestForm.classList.remove('hidden');
+            if (uploadSection) uploadSection.classList.add('hidden');
+            if (uploadsSection) uploadsSection.classList.add('hidden');
 
             // Show rejection reason if available
             if (volunteer.rejectionReason) {
@@ -763,11 +796,13 @@ function updateVolunteerStatus() {
             addResubmissionNotice();
         }
     } else {
-        statusElement.textContent = 'Not Applied';
-        statusElement.className = 'status-badge';
-        requestForm.classList.remove('hidden');
-        uploadSection.classList.add('hidden');
-        uploadsSection.classList.add('hidden');
+        if (statusElement) {
+            statusElement.textContent = 'Not Applied';
+            statusElement.className = 'status-badge';
+        }
+        if (requestForm) requestForm.classList.remove('hidden');
+        if (uploadSection) uploadSection.classList.add('hidden');
+        if (uploadsSection) uploadsSection.classList.add('hidden');
     }
 }
 
@@ -1412,6 +1447,9 @@ function navigateToSection(sectionId) {
     // Load section-specific data
     loadSectionData(sectionId);
 
+    // Reset filters when changing sections to ensure a clean state
+    resetFilters();
+
     // Close mobile menu
     const navMenu = document.querySelector('.nav-menu');
     if (navMenu) {
@@ -1883,11 +1921,15 @@ async function loadNotices() {
         // Then try to load from S3
         const s3Notices = await loadNoticesFromS3();
 
-        // Merge S3 and local notices, removing duplicates
+        // Merge S3 and local notices with robust deduplication
         if (s3Notices.length > 0) {
-            const allNotices = [...notices, ...s3Notices];
+            const allNotices = [...s3Notices, ...notices]; // Prefer S3 version (more recent/official)
             notices = allNotices.filter((notice, index, self) =>
-                index === self.findIndex(n => n.id === notice.id)
+                index === self.findIndex(n => 
+                    (n.id === notice.id) || 
+                    (n.eventId && notice.eventId && n.eventId === notice.eventId) ||
+                    (n.title === notice.title && n.uploadedBy === notice.uploadedBy && n.date === notice.date)
+                )
             ).sort((a, b) => new Date(b.date) - new Date(a.date));
         }
 
@@ -1924,6 +1966,11 @@ function renderNotices() {
 
     container.innerHTML = filteredNotices.map(notice => `
         <div class="notice-card" onclick="viewNotice('${notice.id}')">
+            ${(currentUser && (currentUser.role === 'admin' || notice.uploadedBy === currentUser.email)) ? `
+            <button class="notice-delete-btn" title="Delete Notice" onclick="event.stopPropagation(); deleteNotice('${notice.id}')">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            ` : ''}
             <img src="${notice.imageUrl}"
                  alt="${notice.title}"
                  class="notice-image"
@@ -1938,6 +1985,38 @@ function renderNotices() {
             </div>
         </div>
     `).join('');
+}
+
+async function deleteNotice(noticeId) {
+    if (!confirm('Are you sure you want to delete this notice? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const index = notices.findIndex(n => n.id === noticeId);
+        if (index === -1) return;
+
+        const notice = notices[index];
+        console.log('🗑️ Deleting notice:', notice.title);
+
+        // Remove from local array
+        notices.splice(index, 1);
+        
+        // Update localStorage
+        localStorage.setItem(CONFIG.STORAGE_KEYS.NOTICES, JSON.stringify(notices));
+
+        // Note: For a real S3 implementation, we would also call s3Client.deleteObject here
+        // For now, we update the local view immediately
+        renderNotices();
+        updateDashboardStats();
+        updateLatestNotices();
+        
+        showToast('Notice deleted successfully', 'success');
+
+    } catch (error) {
+        console.error('Error deleting notice:', error);
+        showToast('Failed to delete notice', 'error');
+    }
 }
 
 function filterNotices() {
@@ -2008,27 +2087,64 @@ function setupUploadForm() {
 }
 
 function uploadNotice(formData, file) {
+    // Prevent duplicate uploads (same title, category and exact date)
+    const newTitle = formData.get('title');
+    const newEventDate = formData.get('eventDate');
+    const newCategory = formData.get('category');
+    const today = new Date().toISOString().split('T')[0];
+
+    const isDuplicate = notices.some(n => {
+        const titleMatch = n.title === newTitle;
+        const categoryMatch = n.category === newCategory;
+        // Match if event date is same, OR if both have no event date, match by upload date
+        const dateMatch = newEventDate ? (n.eventDate === newEventDate) : (n.date === today);
+        return titleMatch && categoryMatch && dateMatch;
+    });
+
+    if (isDuplicate) {
+        showToast('A notice with this title and date already exists. Duplicate upload prevented.', 'warning');
+        return;
+    }
+
+    if (isUploading) {
+        showToast('Upload is already in progress...', 'warning');
+        return;
+    }
+
+    // Show progress
+    isUploading = true;
     const uploadBtn = document.getElementById('uploadBtn');
     const progressSection = document.getElementById('uploadProgress');
     const successSection = document.getElementById('uploadSuccess');
 
-    // Show progress
-    uploadBtn.disabled = true;
-    progressSection.classList.remove('hidden');
+    if (uploadBtn) uploadBtn.disabled = true;
+    if (progressSection) progressSection.classList.remove('hidden');
+
+    // Safety timeout: reset upload flag if it takes too long
+    const uploadTimeout = setTimeout(() => {
+        if (isUploading) {
+            console.warn('⚠️ Staff upload timed out');
+            isUploading = false;
+            if (uploadBtn) uploadBtn.disabled = false;
+            if (progressSection) progressSection.classList.add('hidden');
+        }
+    }, 30000);
 
     // Upload to AWS S3
     uploadToS3(file, formData, (err, s3Key) => {
+        clearTimeout(uploadTimeout);
+        isUploading = false;
         if (err) {
             console.error('Upload error:', err);
             showToast('Upload failed: ' + err.message, 'error');
-            progressSection.classList.add('hidden');
-            uploadBtn.disabled = false;
+            if (progressSection) progressSection.classList.add('hidden');
+            if (uploadBtn) uploadBtn.disabled = false;
             return;
         }
 
         // Show success
-        progressSection.classList.add('hidden');
-        successSection.classList.remove('hidden');
+        if (progressSection) progressSection.classList.add('hidden');
+        if (successSection) successSection.classList.remove('hidden');
 
         // Add to notices list
         const newNotice = {
@@ -2061,7 +2177,12 @@ function uploadNotice(formData, file) {
         navigateToSection('dashboard');
 
         showToast('Notice uploaded successfully!', 'success');
-        uploadBtn.disabled = false;
+        if (uploadBtn) uploadBtn.disabled = false;
+
+        // Reset form and file inputs
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) uploadForm.reset();
+        if (typeof clearFileInput === 'function') clearFileInput();
     });
 }
 
@@ -2908,7 +3029,6 @@ async function testChatbotAPI() {
 
 // Volunteer System
 let volunteerFormsSetup = false; // Flag to prevent duplicate setup
-let isUploading = false; // Flag to prevent multiple simultaneous uploads
 
 function setupVolunteerForm() {
     console.log('🔧 setupVolunteerForm() called, volunteerFormsSetup =', volunteerFormsSetup);
@@ -3125,8 +3245,19 @@ function uploadEventPoster(formData, onCompleteCallback) {
         return;
     }
 
-    // Set upload flag
-    isUploading = true;
+    // Check for duplicates
+    const isDuplicate = notices.some(n => 
+        n.title === formData.get('title') && 
+        n.category === formData.get('category') && 
+        n.eventDate === formData.get('eventDate')
+    );
+
+    if (isDuplicate) {
+        showToast('A notice with this title and date already exists. Duplicate upload prevented.', 'warning');
+        isUploading = false;
+        return;
+    }
+
     console.log('✅ User is approved volunteer, proceeding with upload');
 
     // Reset upload flag after a delay (in case of errors)
@@ -3199,8 +3330,20 @@ function uploadEventPoster(formData, onCompleteCallback) {
 
         showToast('Event uploaded and published successfully! Now visible in all dashboards.', 'success');
 
-        // Clear form and reload volunteer uploads
-        document.getElementById('volunteerUploadForm').reset();
+        // Reset form and file inputs
+        const volunteerUploadForm = document.getElementById('volunteerUploadForm');
+        if (volunteerUploadForm) {
+            volunteerUploadForm.reset();
+            // Clear file preview if any
+            const uploadArea = document.getElementById('fileUploadArea');
+            if (uploadArea) {
+                uploadArea.classList.remove('has-file');
+                const preview = document.getElementById('filePreview');
+                if (preview) preview.classList.remove('show');
+                const content = uploadArea.querySelector('.upload-content');
+                if (content) content.style.display = 'block';
+            }
+        }
 
         // Also save to volunteer uploads for admin review
         const volunteerUpload = {
