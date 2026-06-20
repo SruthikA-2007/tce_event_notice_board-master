@@ -617,11 +617,24 @@ iframe[title="Sign in with Google Button"] {
 }
 
 .notices-container.grid-view {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Responsive adjustments for grid */
+@media (max-width: 1024px) {
+    .notices-container.grid-view {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .notices-container.grid-view {
+        grid-template-columns: 1fr;
+    }
 }
 
 .notices-container.list-view {
-    grid-template-columns: 1fr;
+    display: none; /* List view is disabled */
 }
 
 .notice-card {

@@ -43,30 +43,31 @@ const CONFIG = {
 let s3Client = null;
 let lambdaClient = null;
 
-// Generate pre-signed URL for S3 objects
 function generatePresignedUrl(key) {
-    console.log('🔗 Generating URL for image:', key);
-
+    // Generates a secure, temporary URL. 
+    // This is now called on every render to ensure it NEVER expires for the user.
     try {
-        if (!s3Client) {
-            console.warn('⚠️ S3 client not initialized, using fallback URLs');
-            return getPublicS3Url(key);
-        }
+        if (!s3Client) return getPublicS3Url(key);
 
         const params = {
             Bucket: CONFIG.S3_BUCKET_NAME,
             Key: key,
-            Expires: 3600 // URL expires in 1 hour
+            Expires: 86400 // 24 hours
         };
 
-        const presignedUrl = s3Client.getSignedUrl('getObject', params);
-        console.log('✅ Generated pre-signed URL for:', key);
-        return presignedUrl;
+        return s3Client.getSignedUrl('getObject', params);
     } catch (error) {
-        console.error('❌ Error generating pre-signed URL for', key, ':', error);
-        console.log('🔗 Using fallback URL generation...');
+        console.error('URL Generation error:', error);
         return getPublicS3Url(key);
     }
+}
+
+function getFreshImageUrl(notice) {
+    const s3Key = notice.s3Key || notice.id;
+    if (s3Key && (s3Key.startsWith('events/') || s3Key.includes('/') || s3Key.startsWith('academic_') || s3Key.startsWith('general_'))) {
+        return generatePresignedUrl(s3Key);
+    }
+    return notice.imageUrl;
 }
 
 // Enhanced public URL generation with multiple fallback strategies
@@ -466,8 +467,7 @@ function setupEventListeners() {
     // Filters and search
     setupFilters();
 
-    // View toggle
-    setupViewToggle();
+    // View toggle removed as per request
 
     // Modal
     setupModal();
@@ -1916,6 +1916,20 @@ async function loadNotices() {
         const storedNotices = localStorage.getItem(CONFIG.STORAGE_KEYS.NOTICES);
         if (storedNotices) {
             notices = JSON.parse(storedNotices);
+            
+            // Refresh URLs for S3 images to prevent expiration (Presigned URLs only last 24 hours)
+            notices = notices.map(notice => {
+                // Try to get S3 key from s3Key property, or fallback to id
+                const s3Key = notice.s3Key || notice.id; 
+                
+                if (s3Key && (s3Key.startsWith('events/') || s3Key.includes('/'))) {
+                    console.log('🔄 Refreshing expired URL for:', s3Key);
+                    notice.imageUrl = generatePresignedUrl(s3Key);
+                    // Ensure s3Key is explicitly set for future cycles
+                    notice.s3Key = s3Key;
+                }
+                return notice;
+            });
         }
 
         // Then try to load from S3
@@ -1971,7 +1985,7 @@ function renderNotices() {
                 <i class="fas fa-trash-alt"></i>
             </button>
             ` : ''}
-            <img src="${notice.imageUrl}"
+            <img src="${getFreshImageUrl(notice)}"
                  alt="${notice.title}"
                  class="notice-image"
                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNTAgMTAwSDI1MFYxNTBIMTUwVjEwMFoiIGZpbGw9IiNDQ0NDQ0MiLz4KPGNpcmNsZSBjeD0iMTIwIiBjeT0iMTI1IiByPSIyMCIgZmlsbD0iI0NDQ0NDQyIvPgo8cGF0aCBkPSJNMTgwIDE2MEgyMjBWMjAwSDE4MFYxNjBaIiBmaWxsPSIjQ0NDQ0NDIi8+CjxwYXRoIGQ9Ik0yNDAgMTYwSDI4MFYyMDBIMjQwVjE2MFoiIGZpbGw9IiNDQ0NDQ0MiLz4KPHRleHQgeD0iMjAwIiB5PSI5MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5OTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSBOb3QgQXZhaWxhYmxlPC90ZXh0Pgo8L3N2Zz4=';this.onerror=null;this.style.background='#f5f5f5';">
@@ -2048,22 +2062,7 @@ function setupFilters() {
     });
 }
 
-function setupViewToggle() {
-    document.querySelectorAll('.view-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.dataset.view;
-            const container = document.getElementById('noticesContainer');
-
-            // Update active button
-            document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Update container class
-            container.classList.remove('grid-view', 'list-view');
-            container.classList.add(`${view}-view`);
-        });
-    });
-}
+// View toggle removed - forced horizontal layout
 
 // Upload Functionality
 function setupUploadForm() {
@@ -2148,7 +2147,8 @@ function uploadNotice(formData, file) {
 
         // Add to notices list
         const newNotice = {
-            id: Date.now().toString(),
+            id: s3Key, // Use S3 Key as ID for consistent refreshing
+            s3Key: s3Key, // Store explicitly as well
             title: formData.get('title'),
             category: formData.get('category'),
             date: new Date().toISOString().split('T')[0],
@@ -2213,12 +2213,13 @@ function uploadToS3(file, formData, callback) {
         uploadDate: new Date().toISOString().split('T')[0]
     };
 
-    // S3 upload parameters - WITH metadata attached to the file
+    // S3 upload parameters - WITH metadata AND public-read access for permanent URLs
     const uploadParams = {
         Bucket: CONFIG.S3_BUCKET_NAME,
         Key: fileName,
         Body: file,
         ContentType: file.type,
+        // Removed ACL: 'public-read' because it might cause 403 Access Denied on some bucket configurations
         Metadata: {
             'event-id': eventData.eventId,
             'category': eventData.category,
@@ -3298,9 +3299,10 @@ function uploadEventPoster(formData, onCompleteCallback) {
         console.log('🚀 Volunteer upload successful, using same storage as admin uploads');
         console.log('🚀 S3 key:', s3Key);
 
-        // Create notice entry - EXACTLY SAME AS ADMIN UPLOAD PATTERN
+        // Create notice entry - USE S3 KEY AS ID
         const newNotice = {
-            id: Date.now().toString(),
+            id: s3Key, 
+            s3Key: s3Key,
             title: formData.get('title'),
             category: formData.get('category'),
             date: new Date().toISOString().split('T')[0],
@@ -3386,7 +3388,7 @@ function loadVolunteerData() {
     if (currentUser && currentUser.role === 'admin') {
         showVolunteerRequests();
     } else if (currentUser && currentUser.role === 'student') {
-        // For students, show their volunteer status and appropriate interface
+        // Double check student role before showing user status
         updateVolunteerStatus();
         loadStudentNotifications();
     }
@@ -3502,10 +3504,10 @@ function showVolunteerRequests(view = 'pending') {
                                     <td>${formatDate(request.appliedAt || request.date)}</td>
                                     <td><span class="status-badge pending">Pending</span></td>
                                     <td>
-                                        <button class="btn-small btn-primary" onclick="acceptVolunteerRequest('${request.id}')">
+                                        <button class="btn-small btn-primary" onclick="approveVolunteer('${request.id}')">
                                             <i class="fas fa-check"></i> Approve
                                         </button>
-                                        <button class="btn-small btn-danger" onclick="rejectVolunteerRequest('${request.id}')">
+                                        <button class="btn-small btn-danger" onclick="rejectVolunteer('${request.id}')">
                                             <i class="fas fa-times"></i> Reject
                                         </button>
                                     </td>
@@ -3618,6 +3620,9 @@ function approveVolunteer(requestId) {
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
 
         loadVolunteerRequests();
+        if (typeof showVolunteerRequests === 'function' && currentUser.role === 'admin') {
+            showVolunteerRequests(showVolunteerRequests.currentView || 'pending');
+        }
         updateAdminStats();
         showToast(`Approved ${volunteer.name} as volunteer`, 'success');
 
@@ -3630,23 +3635,25 @@ function approveVolunteer(requestId) {
 }
 
 function rejectVolunteer(requestId) {
-    const reason = prompt('Enter rejection reason (optional):');
     const volunteer = volunteers.find(v => v.id === requestId);
 
     if (volunteer) {
         volunteer.status = 'rejected';
         volunteer.rejectedAt = new Date().toISOString();
         volunteer.rejectedBy = currentUser.email;
-        volunteer.rejectionReason = reason || 'No reason provided';
+        volunteer.rejectionReason = 'No specific reason provided';
 
         // Save to localStorage
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
 
         // Create rejection notification for the student
         createStudentNotification(volunteer.email, 'Volunteer Request Rejected',
-            `Your volunteer request has been rejected. ${reason ? `Reason: ${reason}` : 'No specific reason provided.'} You can reapply if you wish.`);
+            `Your volunteer request has been rejected. You can reapply if you wish.`);
 
         loadVolunteerRequests();
+        if (typeof showVolunteerRequests === 'function' && currentUser.role === 'admin') {
+            showVolunteerRequests(showVolunteerRequests.currentView || 'pending');
+        }
         updateAdminStats();
         showToast(`Rejected ${volunteer.name}'s application and notified student`, 'success');
     }

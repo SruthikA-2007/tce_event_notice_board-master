@@ -67,7 +67,7 @@ async function uploadToS3(file, formData) {
             Key: fileName,
             Body: file,
             ContentType: file.type,
-            ACL: 'public-read', // Make file publicly readable
+            // Removed ACL: 'public-read' to prevent upload failures on strict buckets
             Metadata: {
                 'title': formData.get('title') || 'Untitled',
                 'category': formData.get('category') || 'general',
