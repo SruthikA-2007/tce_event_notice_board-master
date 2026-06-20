@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCE Event Notice Board</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1488.0.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loader">
+            <i class="fas fa-graduation-cap"></i>
+            <p>TCE Event Board</p>
+        </div>
+    </div>
+
+    <!-- Login Section -->
+    <div id="loginSection" class="login-section">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <i class="fas fa-university"></i>
+                    <h1>TCE Event Notice Board</h1>
+                    <p>Thiagarajar College of Engineering</p>
+                </div>
+
+                <div class="login-content">
+                    <h2>Welcome Back!</h2>
+                    <p>Sign in with your college email to access notices and events</p>
+
+                    <div class="google-signin-btn" id="googleSignInBtn">
+                        <div class="google-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                        </div>
+                        <span>Sign in with Google</span>
+                    </div>
+
+                    <div class="login-info">
+                        <div class="info-item">
+                            <i class="fas fa-user-tie"></i>
+                            <div>
+                                <strong>Staff/Admin:</strong>
+                                <span>@tce.edu</span>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-user-graduate"></i>
+                            <div>
+                                <strong>Student:</strong>
+                                <span>@student.tce.edu</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="main-app hidden">
+        <!-- Navigation Header -->
+        <header class="header">
+            <nav class="navbar">
+                <div class="nav-container">
+                    <div class="nav-brand">
+                        <i class="fas fa-university"></i>
+                        <span>TCE Events</span>
+                    </div>
+
+                    <ul class="nav-menu">
+                        <li class="nav-item">
+                            <a href="#dashboard" class="nav-link active" data-section="dashboard">
+                                <i class="fas fa-home"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#notices" class="nav-link" data-section="notices">
+                                <i class="fas fa-bullhorn"></i>
+                                <span>Notices</span>
+                            </a>
+                        </li>
+                        <li class="nav-item admin-only hidden">
+                            <a href="#upload" class="nav-link" data-section="upload">
+                                <i class="fas fa-upload"></i>
+                                <span>Upload Notice</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#chatbot" class="nav-link" data-section="chatbot">
+                                <i class="fas fa-robot"></i>
+                                <span>Assistant</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#volunteer" class="nav-link" data-section="volunteer">
+                                <i class="fas fa-hands-helping"></i>
+                                <span>Volunteer</span>
+                            </a>
+                        </li>
+                    </ul>
+
+                    <div class="user-menu">
+                        <div class="user-info" id="userInfo">
+                            <img id="userAvatar" src="" alt="User" class="user-avatar">
+                            <div class="user-details">
+                                <span id="userName" class="user-name"></span>
+                                <span id="userRole" class="user-role"></span>
+                            </div>
+                        </div>
+                        <div class="dropdown">
+                            <button class="dropdown-btn" id="userDropdown">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="dropdown-menu" id="dropdownMenu">
+                                <a href="#" class="dropdown-item" id="logoutBtn">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mobile-menu-toggle">
+                        <i class="fas fa-bars"></i>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <div class="container">
+                    <div class="dashboard-header">
+                        <h1>Welcome, <span id="dashboardUserName"></span>!</h1>
+                        <p id="dashboardGreeting">Stay updated with the latest college events and notices</p>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalNotices">0</h3>
+                                <p>Total Notices</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-day"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="todayNotices">0</h3>
+                                <p>Today's Notices</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="recentNotices">0</h3>
+                                <p>Recent Updates</p>
+                            </div>
+                        </div>
+                        <div class="stat-card admin-only hidden">
+                            <div class="stat-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="volunteerCount">0</h3>
+                                <p>Volunteers</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card">
+                            <h3><i class="fas fa-bullhorn"></i> Latest Notices</h3>
+                            <div id="latestNotices" class="notices-list">
+                                <div class="loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Loading latest notices...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-card">
+                            <h3><i class="fas fa-calendar-alt"></i> Upcoming Events</h3>
+                            <div id="upcomingEvents" class="events-list">
+                                <div class="loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Loading upcoming events...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Notices Section -->
+            <section id="notices" class="section">
+                <div class="container">
+                    <div class="section-header">
+                        <h1>College Notices</h1>
+                        <p>Browse and filter through all college notices and events</p>
+                    </div>
+
+                    <div class="filters-container">
+                        <div class="filter-group">
+                            <label for="categoryFilter">Category:</label>
+                            <select id="categoryFilter" class="filter-select">
+                                <option value="all">All Categories</option>
+                                <option value="academic">Academic</option>
+                                <option value="technical">Technical</option>
+                                <option value="cultural">Cultural</option>
+                                <option value="sports">Sports</option>
+                                <option value="examination">Examination</option>
+                                <option value="placement">Placement</option>
+                                <option value="volunteer">Volunteer Events</option>
+                                <option value="general">General</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="dateFilter">Date:</label>
+                            <input type="date" id="dateFilter" class="filter-input">
+                        </div>
+
+                        <div class="filter-group search-group">
+                            <input type="text" id="searchNotices" placeholder="Search notices..." class="search-input">
+                            <i class="fas fa-search"></i>
+                        </div>
+
+                        <div class="view-toggle">
+                            <button class="view-btn active" data-view="grid">
+                                <i class="fas fa-th"></i>
+                            </button>
+                            <button class="view-btn" data-view="list">
+                                <i class="fas fa-list"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="noticesContainer" class="notices-container grid-view">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading notices...</p>
+                        </div>
+                    </div>
+
+                    <div class="pagination" id="pagination">
+                        <!-- Pagination buttons will be added dynamically -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Upload Section (Admin Only) -->
+            <section id="upload" class="section admin-only hidden">
+                <div class="container">
+                    <div class="section-header">
+                        <h1>Upload New Notice</h1>
+                        <p>Upload event posters and notices for students</p>
+                    </div>
+
+                    <div class="upload-container">
+                        <form id="uploadForm" class="upload-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="noticeTitle">Notice Title *</label>
+                                    <input type="text" id="noticeTitle" name="title" required placeholder="Enter notice title">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="noticeCategory">Category *</label>
+                                    <select id="noticeCategory" name="category" required>
+                                        <option value="">Select category</option>
+                                        <option value="academic">Academic</option>
+                                        <option value="technical">Technical</option>
+                                        <option value="cultural">Cultural</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="examination">Examination</option>
+                                        <option value="placement">Placement</option>
+                                        <option value="general">General</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="eventDate">Event Date</label>
+                                    <input type="date" id="eventDate" name="eventDate">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="priority">Priority</label>
+                                    <select id="priority" name="priority">
+                                        <option value="normal">Normal</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="noticeDescription">Description (Optional)</label>
+                                <textarea id="noticeDescription" name="description" rows="4" placeholder="Additional details about the notice"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Upload Notice File *</label>
+                                <div class="file-upload-area" id="fileUploadArea">
+                                    <input type="file" id="noticeFile" accept=".pdf,.jpg,.jpeg,.png" required>
+                                    <div class="upload-content">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <h3>Drop files here or click to browse</h3>
+                                        <p>Support for PDF, JPG, PNG (Max 10MB)</p>
+                                    </div>
+                                    <div class="file-preview" id="filePreview">
+                                        <div class="preview-content">
+                                            <i class="fas fa-file"></i>
+                                            <div class="file-info">
+                                                <span class="file-name"></span>
+                                                <span class="file-size"></span>
+                                            </div>
+                                            <button type="button" class="remove-file" id="removeFile">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                    <i class="fas fa-upload"></i>
+                                    <span>Upload Notice</span>
+                                </button>
+                                <button type="reset" class="btn btn-secondary" id="resetBtn">
+                                    <i class="fas fa-redo"></i>
+                                    <span>Reset Form</span>
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="upload-progress hidden" id="uploadProgress">
+                            <div class="progress-content">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Uploading notice...</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressFill"></div>
+                                </div>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="upload-success hidden" id="uploadSuccess">
+                            <div class="success-content">
+                                <i class="fas fa-check-circle"></i>
+                                <h3>Upload Successful!</h3>
+                                <p>Your notice has been uploaded and is now visible to students.</p>
+                                <button class="btn btn-secondary" id="uploadAnother">
+                                    <i class="fas fa-plus"></i>
+                                    Upload Another Notice
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chatbot Section -->
+            <section id="chatbot" class="section">
+                <div class="container">
+                    <div class="chatbot-container">
+                        <div class="chatbot-header">
+                            <div class="header-content">
+                                <div class="bot-avatar">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="bot-info">
+                                    <h3>TCE Event Assistant</h3>
+                                    <span class="status online">
+                                        <i class="fas fa-circle"></i>
+                                        Online
+                                    </span>
+                                </div>
+                            </div>
+                            <button class="minimize-btn" id="minimizeChat">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+
+                        <div class="chatbot-messages" id="chatMessages">
+                            <div class="message bot-message">
+                                <div class="message-avatar">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                                <div class="message-content">
+                                    <p>Hello! I'm your TCE Event Assistant. I can help you find information about:</p>
+                                    <ul>
+                                        <li>Upcoming events and notices</li>
+                                        <li>Event schedules and venues</li>
+                                        <li>Department-specific activities</li>
+                                        <li>Examination schedules</li>
+                                        <li>Placement drives</li>
+                                    </ul>
+                                    <p>What would you like to know about?</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chatbot-input">
+                            <div class="quick-actions">
+                                <button class="quick-action-btn" data-query="What events are happening today?">
+                                    <i class="fas fa-calendar-day"></i>
+                                    Today's Events
+                                </button>
+                                <button class="quick-action-btn" data-query="Tell me about technical events this week">
+                                    <i class="fas fa-laptop-code"></i>
+                                    Technical Events
+                                </button>
+                                <button class="quick-action-btn" data-query="Are there any cultural events coming up?">
+                                    <i class="fas fa-music"></i>
+                                    Cultural Events
+                                </button>
+                                <button class="quick-action-btn" data-query="Show me examination schedules">
+                                    <i class="fas fa-clipboard-list"></i>
+                                    Exams
+                                </button>
+                            </div>
+
+                            <form id="chatForm" class="chat-form">
+                                <div class="input-group">
+                                    <input type="text" id="chatInput" placeholder="Ask me about events and notices..." required>
+                                    <button type="submit" class="send-btn">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profile" class="section">
+                <div class="container">
+                    <div class="section-header">
+                        <h1>Profile</h1>
+                        <p>View and manage your profile information</p>
+                    </div>
+
+                    <div class="profile-container">
+                        <div class="profile-card">
+                            <div class="profile-header">
+                                <img id="profileAvatar" src="" alt="Profile" class="profile-avatar">
+                                <div class="profile-info">
+                                    <h2 id="profileName"></h2>
+                                    <p id="profileEmail"></p>
+                                    <span id="profileRole" class="role-badge"></span>
+                                </div>
+                            </div>
+                            <div class="profile-details">
+                                <div class="detail-item">
+                                    <label>Member Since:</label>
+                                    <span id="memberSince"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Last Login:</label>
+                                    <span id="lastLogin"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Email Status:</label>
+                                    <span id="emailStatus"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="section">
+                <div class="container">
+                    <div class="section-header">
+                        <h1>Settings</h1>
+                        <p>Manage your application preferences</p>
+                    </div>
+
+                    <div class="settings-container">
+                        <div class="settings-card">
+                            <h3>Notification Settings</h3>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="emailNotifications" checked>
+                                    Email notifications for new notices
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="pushNotifications" checked>
+                                    Browser push notifications
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3>Display Settings</h3>
+                            <div class="setting-item">
+                                <label>Default View:</label>
+                                <select id="defaultView">
+                                    <option value="grid">Grid View</option>
+                                    <option value="list">List View</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="darkMode">
+                                    Dark mode (Coming soon)
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn btn-primary" onclick="saveSettings()">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                            <button class="btn btn-secondary" onclick="resetSettings()">
+                                <i class="fas fa-undo"></i> Reset to Default
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Volunteer Section -->
+            <section id="volunteer" class="section">
+                <div class="container">
+                    <div class="section-header">
+                        <h1>Volunteer Portal</h1>
+                        <p>Help manage notices and events for your college</p>
+                        <div id="studentNotifications" class="student-notifications">
+                            <!-- Notification badge will be inserted here by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Volunteer Status -->
+                    <div class="volunteer-status-section">
+                        <div class="status-card">
+                            <i class="fas fa-hands-helping"></i>
+                            <h3>Volunteer Status</h3>
+                            <span id="volunteerStatus" class="status-badge pending">Not Applied</span>
+                            <div id="rejectionReason" class="rejection-reason hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Request Access Form -->
+                    <div id="volunteerRequestForm" class="volunteer-card volunteer-only">
+                        <h3>Request Volunteer Access</h3>
+                        <p>Apply to become a volunteer uploader for your department or club.</p>
+                        
+                        <form id="volunteerForm" class="volunteer-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="volunteerName">Full Name *</label>
+                                    <input type="text" id="volunteerName" name="volunteerName" required placeholder="Enter your full name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="volunteerRoll">Roll Number *</label>
+                                    <input type="text" id="volunteerRoll" name="volunteerRoll" required placeholder="Enter your roll number">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="volunteerPhone">Phone Number *</label>
+                                    <input type="tel" id="volunteerPhone" name="volunteerPhone" required placeholder="Enter your phone number">
+                                </div>
+                                <div class="form-group">
+                                    <label for="volunteerEmail">Email Address</label>
+                                    <input type="email" id="volunteerEmailDisplay" disabled placeholder="Will be taken from your login">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="volunteerDepartment">Department *</label>
+                                    <select id="volunteerDepartment" name="volunteerDepartment" required>
+                                        <option value="">Select Department</option>
+                                        <option value="cse">Computer Science Engineering</option>
+                                        <option value="ece">Electronics Engineering</option>
+                                        <option value="eee">Electrical Engineering</option>
+                                        <option value="mech">Mechanical Engineering</option>
+                                        <option value="civil">Civil Engineering</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="volunteerYear">Year *</label>
+                                    <select id="volunteerYear" name="volunteerYear" required>
+                                        <option value="">Select Year</option>
+                                        <option value="1">1st Year</option>
+                                        <option value="2">2nd Year</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="volunteerClub">Club / Event Team Name *</label>
+                                <input type="text" id="volunteerClub" name="volunteerClub" required placeholder="e.g., Technical Club, Cultural Committee">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="volunteerReason">Reason for requesting access *</label>
+                                <textarea id="volunteerReason" name="volunteerReason" rows="4" required placeholder="Explain why you want to become a volunteer uploader..."></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="volunteerIdProof">Upload ID Proof (Optional)</label>
+                                <input type="file" id="volunteerIdProof" accept=".jpg,.jpeg,.png,.pdf">
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                                Submit Request
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Upload Interface (Visible after approval) -->
+                    <div id="volunteerUploadSection" class="volunteer-card volunteer-only hidden">
+                        <h3>Upload Event Poster</h3>
+                        <p>Upload event details and posters for your club/department.</p>
+                        
+                        <form id="volunteerUploadForm" class="volunteer-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="eventTitle">Event Title *</label>
+                                    <input type="text" id="eventTitle" name="title" required placeholder="Enter event title">
+                                </div>
+                                <div class="form-group">
+                                    <label for="category">Category *</label>
+                                    <select id="category" name="category" required>
+                                        <option value="">Select category</option>
+                                        <option value="volunteer">Volunteer Event</option>
+                                        <option value="academic">Academic</option>
+                                        <option value="technical">Technical</option>
+                                        <option value="cultural">Cultural</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="examination">Examination</option>
+                                        <option value="placement">Placement</option>
+                                        <option value="general">General</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="eventDescription">Event Description *</label>
+                                <textarea id="eventDescription" name="description" rows="4" required placeholder="Describe the event..."></textarea>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="eventDateTime">Event Date & Time *</label>
+                                    <input type="datetime-local" id="eventDateTime" name="eventDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="eventOrganizer">Organized by *</label>
+                                    <input type="text" id="eventOrganizer" name="eventOrganizer" required placeholder="Club/Department name">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="eventContact">Contact Details *</label>
+                                <input type="text" id="eventContact" name="eventContact" required placeholder="Phone number or email">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="priority">Priority *</label>
+                                <select id="priority" name="priority" required>
+                                    <option value="">Select priority</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="eventPoster">Upload Poster *</label>
+                                <input type="file" id="eventPoster" accept=".jpg,.jpeg,.png,.pdf" required>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i>
+                                Upload Event
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Manage Requests (Admin) - Placeholder container for dynamic content -->
+                    <div id="adminVolunteerManagementContainer" class="admin-only hidden">
+                        <!-- Content will be dynamically loaded here by script.js (showVolunteerRequests) -->
+                    </div>
+
+                    <!-- My Uploads (Approved Students) -->
+                    <div id="myUploadsSection" class="volunteer-card volunteer-only hidden">
+                        <h3>My Uploads</h3>
+                        <div id="myUploadsList" class="uploads-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>File Name</th>
+                                        <th>Upload Date</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uploadsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="text-center">No uploads yet</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notice Detail Modal -->
+    <div id="noticeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Notice Details</h2>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="notice-details">
+                    <div class="detail-item">
+                        <label>Category:</label>
+                        <span id="modalCategory"></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Event Date:</label>
+                        <span id="modalDate"></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Priority:</label>
+                        <span id="modalPriority"></span>
+                    </div>
+                    <div class="detail-item description">
+                        <label>Description:</label>
+                        <p id="modalDescription"></p>
+                    </div>
+                </div>
+                <div class="notice-viewer">
+                    <img id="modalImage" src="" alt="Notice" class="notice-image">
+                    <div class="viewer-controls">
+                        <button class="btn btn-secondary" id="downloadNotice">
+                            <i class="fas fa-download"></i>
+                            Download
+                        </button>
+                        <button class="btn btn-danger admin-only" id="modalDeleteBtn">
+                            <i class="fas fa-trash"></i>
+                            Delete Notice
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Volunteer Detail Modal -->
+    <div id="volunteerDetailsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Volunteer Details</h2>
+                <button class="modal-close" onclick="closeModal('volunteerDetailsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="volunteerDetailsBody">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('volunteerDetailsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="script.js"></script>
+
+    <!-- Real Lambda Chatbot - NO INLINE OVERRIDES -->
+</body>
+</html>

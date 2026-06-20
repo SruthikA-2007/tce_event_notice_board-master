@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCE Event Notice Board</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h1>TCE Event Notice Board</h1>
+                </div>
+                <nav class="nav">
+                    <button class="nav-btn admin-only" id="adminPanelBtn">
+                        <i class="fas fa-upload"></i>
+                        <span>Upload Notice</span>
+                    </button>
+                    <button class="nav-btn" id="volunteerBtn">
+                        <i class="fas fa-hands-helping"></i>
+                        <span>Volunteer</span>
+                    </button>
+                    <button class="nav-btn" id="noticesBtn">
+                        <i class="fas fa-bullhorn"></i>
+                        <span>Notices</span>
+                    </button>
+                    <button class="nav-btn" id="chatbotBtn">
+                        <i class="fas fa-robot"></i>
+                        <span>Chatbot</span>
+                    </button>
+                    <button class="nav-btn logout-btn" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </button>
+                </nav>
+                <div class="user-info" id="userInfo">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="userName">Guest</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section class="section" id="dashboardSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
+                    <p>Welcome to TCE Event Notice Board</p>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalNotices">0</h3>
+                            <p>Total Notices</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="upcomingEvents">0</h3>
+                            <p>Upcoming Events</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-hands-helping"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalVolunteers">0</h3>
+                            <p>Volunteers</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="lastUpdate">Never</h3>
+                            <p>Last Update</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-events">
+                    <h3><i class="fas fa-calendar-alt"></i> Upcoming Events</h3>
+                    <div id="upcomingEventsList" class="events-list">
+                        <p class="no-events">No upcoming events found</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Upload Notice Section (Admin Only) -->
+            <section class="section hidden" id="uploadSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-upload"></i> Upload Notice</h2>
+                    <p>Upload a new notice or event announcement</p>
+                </div>
+
+                <div class="upload-form">
+                    <form id="uploadForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventTitle"><i class="fas fa-heading"></i> Event Title</label>
+                                <input type="text" id="eventTitle" name="eventTitle" required placeholder="Enter event title">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="eventCategory"><i class="fas fa-tag"></i> Category</label>
+                                <select id="eventCategory" name="eventCategory" required>
+                                    <option value="">Select category</option>
+                                    <option value="academic">Academic</option>
+                                    <option value="technical">Technical</option>
+                                    <option value="cultural">Cultural</option>
+                                    <option value="sports">Sports</option>
+                                    <option value="placement">Placement</option>
+                                    <option value="general">General</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="eventDate"><i class="fas fa-calendar"></i> Event Date</label>
+                                <input type="date" id="eventDate" name="eventDate" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="eventPriority"><i class="fas fa-exclamation-circle"></i> Priority</label>
+                                <select id="eventPriority" name="eventPriority" required>
+                                    <option value="">Select priority</option>
+                                    <option value="high">High</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="low">Low</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="eventDescription"><i class="fas fa-align-left"></i> Description</label>
+                            <textarea id="eventDescription" name="eventDescription" rows="4" placeholder="Enter event description"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="eventImage"><i class="fas fa-image"></i> Event Image</label>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="eventImage" name="eventImage" accept="image/*" required>
+                                <div class="file-input-label">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <span>Choose image or drag it here</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload"></i>
+                                Upload Notice
+                            </button>
+                            <button type="reset" class="btn btn-secondary">
+                                <i class="fas fa-undo"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Volunteer Section -->
+            <section class="section hidden" id="volunteerSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-hands-helping"></i> Volunteer Section</h2>
+                    <p>Contribute to events and activities</p>
+                </div>
+
+                <div class="volunteer-content">
+                    <div class="volunteer-form">
+                        <h3><i class="fas fa-user-plus"></i> Register as Volunteer</h3>
+                        <form id="volunteerForm">
+                            <div class="form-group">
+                                <label for="volunteerName"><i class="fas fa-user"></i> Full Name</label>
+                                <input type="text" id="volunteerName" name="volunteerName" required placeholder="Enter your full name">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerEmail"><i class="fas fa-envelope"></i> Email</label>
+                                <input type="email" id="volunteerEmail" name="volunteerEmail" required placeholder="Enter your email">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerPhone"><i class="fas fa-phone"></i> Phone</label>
+                                <input type="tel" id="volunteerPhone" name="volunteerPhone" required placeholder="Enter your phone number">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerDepartment"><i class="fas fa-graduation-cap"></i> Department</label>
+                                <select id="volunteerDepartment" name="volunteerDepartment" required>
+                                    <option value="">Select department</option>
+                                    <option value="cse">Computer Science</option>
+                                    <option value="ece">Electronics</option>
+                                    <option value="eee">Electrical</option>
+                                    <option value="mech">Mechanical</option>
+                                    <option value="civil">Civil</option>
+                                    <option value="it">Information Technology</option>
+                                </select>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-user-plus"></i>
+                                    Register
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="volunteer-uploads">
+                        <h3><i class="fas fa-upload"></i> Upload Event Details</h3>
+                        <form id="volunteerUploadForm">
+                            <div class="form-group">
+                                <label for="volunteerEventTitle"><i class="fas fa-heading"></i> Event Title</label>
+                                <input type="text" id="volunteerEventTitle" name="volunteerEventTitle" required placeholder="Enter event title">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerEventCategory"><i class="fas fa-tag"></i> Category</label>
+                                <select id="volunteerEventCategory" name="volunteerEventCategory" required>
+                                    <option value="">Select category</option>
+                                    <option value="academic">Academic</option>
+                                    <option value="technical">Technical</option>
+                                    <option value="cultural">Cultural</option>
+                                    <option value="sports">Sports</option>
+                                    <option value="placement">Placement</option>
+                                    <option value="general">General</option>
+                                </select>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="volunteerEventDate"><i class="fas fa-calendar"></i> Event Date</label>
+                                    <input type="date" id="volunteerEventDate" name="volunteerEventDate" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="volunteerEventPriority"><i class="fas fa-exclamation-circle"></i> Priority</label>
+                                    <select id="volunteerEventPriority" name="volunteerEventPriority" required>
+                                        <option value="">Select priority</option>
+                                        <option value="high">High</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerEventDescription"><i class="fas fa-align-left"></i> Description</label>
+                                <textarea id="volunteerEventDescription" name="volunteerEventDescription" rows="4" placeholder="Enter event description"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="volunteerEventImage"><i class="fas fa-image"></i> Event Image</label>
+                                <div class="file-input-wrapper">
+                                    <input type="file" id="volunteerEventImage" name="volunteerEventImage" accept="image/*" required>
+                                    <div class="file-input-label">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <span>Choose image or drag it here</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-upload"></i>
+                                    Submit Event
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="volunteer-list">
+                        <h3><i class="fas fa-users"></i> Volunteers</h3>
+                        <div id="volunteersList" class="volunteers-grid">
+                            <p class="no-volunteers">No volunteers registered yet</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Notices Section -->
+            <section class="section hidden" id="noticesSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-bullhorn"></i> Notices</h2>
+                    <p>Browse all notices and announcements</p>
+                </div>
+
+                <div class="notices-controls">
+                    <div class="filter-controls">
+                        <label for="categoryFilter"><i class="fas fa-filter"></i> Filter by Category:</label>
+                        <select id="categoryFilter">
+                            <option value="">All Categories</option>
+                            <option value="academic">Academic</option>
+                            <option value="technical">Technical</option>
+                            <option value="cultural">Cultural</option>
+                            <option value="sports">Sports</option>
+                            <option value="placement">Placement</option>
+                            <option value="general">General</option>
+                        </select>
+                    </div>
+
+                    <div class="view-controls">
+                        <button class="view-btn active" id="gridViewBtn">
+                            <i class="fas fa-th"></i>
+                        </button>
+                        <button class="view-btn" id="listViewBtn">
+                            <i class="fas fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="noticesContainer" class="notices-grid">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading notices...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chatbot Section -->
+            <section class="section hidden" id="chatbotSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-robot"></i> AI Chatbot Assistant</h2>
+                    <p>Ask me about events, schedules, and college activities</p>
+                </div>
+
+                <div class="chatbot-container">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message bot-message">
+                            <div class="message-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="message-content">
+                                <p>Hello! I'm your TCE Event Assistant. I can help you find information about events, schedules, and college activities. How can I assist you today?</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form class="chat-input-form" id="chatForm">
+                        <div class="chat-input-container">
+                            <input type="text" id="chatInput" placeholder="Ask me about events, schedules, or activities..." autocomplete="off">
+                            <button type="submit" class="chat-send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notice Detail Modal -->
+    <div id="noticeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Notice Details</h2>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="notice-details">
+                    <div class="detail-item">
+                        <label>Category:</label>
+                        <span id="modalCategory"></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Event Date:</label>
+                        <span id="modalDate"></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Priority:</label>
+                        <span id="modalPriority"></span>
+                    </div>
+                    <div class="detail-item description">
+                        <label>Description:</label>
+                        <p id="modalDescription"></p>
+                    </div>
+                </div>
+                <div class="notice-viewer">
+                    <img id="modalImage" src="" alt="Notice" class="notice-image">
+                    <div class="viewer-controls">
+                        <button class="btn btn-secondary" id="downloadNotice">
+                            <i class="fas fa-download"></i>
+                            Download
+                        </button>
+                        <button class="btn btn-danger admin-only" id="modalDeleteBtn">
+                            <i class="fas fa-trash"></i>
+                            Delete Notice
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="script.js"></script>
+
+    <!-- API Gateway Test Script -->
+    <script>
+        console.log('🤖 Real API Gateway chatbot enabled - no overrides');
+
+        // Test function to verify API Gateway is working
+        window.testAPIGateway = async function() {
+            try {
+                console.log('🔍 Testing API Gateway...');
+                const response = await fetch('https://jng9fg7mra.execute-api.ap-south-1.amazonaws.com/default/top3search', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ q: "hello test" })
+                });
+
+                const data = await response.json();
+                console.log('✅ API Gateway Response:', data);
+                return data;
+            } catch (error) {
+                console.error('❌ API Gateway Error:', error);
+                return error;
+            }
+        };
+
+        console.log('💡 Test API Gateway with: window.testAPIGateway()');
+    </script>
+</body>
+</html>

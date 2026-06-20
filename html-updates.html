@@ -1,0 +1,124 @@
+<!-- Add these script tags to your HTML head section -->
+
+<!-- AWS SDK -->
+<script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+
+<!-- Add CORS meta tag -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:;">
+
+<!-- Update your existing script.js to include the fixes -->
+<script src="aws-fixes.js"></script>
+<script src="script.js"></script>
+
+<!-- Add these CSS fixes for better upload UI -->
+<style>
+.upload-progress {
+    margin-top: 20px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.file-upload-area.drag-over {
+    border-color: #3498db !important;
+    background-color: rgba(52, 152, 219, 0.1) !important;
+}
+
+.chatbot-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.message {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.message-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.user-message .message-avatar {
+    background: #3498db;
+    color: white;
+}
+
+.bot-message .message-avatar {
+    background: #95a5a6;
+    color: white;
+}
+
+.message-content {
+    flex: 1;
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 15px;
+    max-width: 80%;
+}
+
+.user-message .message-content {
+    background: #3498db;
+    color: white;
+    margin-left: auto;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 10px 0;
+}
+
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #95a5a6;
+    animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-10px); }
+}
+
+.error-message {
+    color: #e74c3c;
+    background: #fdf2f2;
+    border: 1px solid #e74c3c;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+}
+
+.success-message {
+    color: #27ae60;
+    background: #f2fdf2;
+    border: 1px solid #27ae60;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+}
+</style>
