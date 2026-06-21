@@ -1178,6 +1178,37 @@ function setupApprovedVolunteersFilters() {
     deptFilter.addEventListener('change', runFilters);
 }
 
+// Function to remove/revoke volunteer access
+function removeVolunteer(volunteerId) {
+    const volunteer = volunteers.find(v => v.id === volunteerId);
+    if (!volunteer) return;
+
+    if (confirm(`Are you sure you want to revoke volunteer access for ${volunteer.name}?`)) {
+        // Change status to 'removed' instead of deleting, to maintain history
+        volunteer.status = 'removed';
+        volunteer.removedAt = new Date().toISOString();
+        volunteer.removedBy = currentUser.email;
+
+        // Save to localStorage
+        localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+
+        // Create notification for the student
+        createStudentNotification(volunteer.email, 'Volunteer Access Revoked', 
+            `Your volunteer uploader access has been revoked by an administrator.`);
+
+        // Force UI refresh
+        loadVolunteerData();
+        
+        // If we are currently in the approved list, make sure we stay there but refresh content
+        if (showVolunteerRequests.currentView === 'approved') {
+            showVolunteerRequests('approved');
+        }
+        
+        updateAdminStats();
+        showToast(`Revoked volunteer access for ${volunteer.name}`, 'info');
+    }
+}
+
 function showVolunteerDetails(volunteerId) {
     const volunteer = volunteers.find(v => v.id === volunteerId);
     if (!volunteer) return;
@@ -3392,7 +3423,7 @@ function loadVolunteerData() {
 
     // For admin users, show volunteer management interface
     if (currentUser && currentUser.role === 'admin') {
-        showVolunteerRequests();
+        showVolunteerRequests(showVolunteerRequests.currentView || 'pending');
     } else if (currentUser && currentUser.role === 'student') {
         // Double check student role before showing user status
         updateVolunteerStatus();
@@ -3466,7 +3497,7 @@ function showVolunteerRequests(view = 'pending') {
         <div id="adminVolunteerManagement">
             <div class="requests-summary">
                 <div class="summary-card-wrapper">
-                    <div class="summary-card">
+                    <div class="summary-card clickable" onclick="showVolunteerRequests('pending')">
                         <i class="fas fa-clock"></i>
                         <h3>${requests.length}</h3>
                         <p>Pending Requests</p>
