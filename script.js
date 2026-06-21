@@ -713,6 +713,12 @@ function updateRoleBasedUI() {
         el.classList.toggle('hidden', !isAdmin);
     });
 
+    // Show/hide student volunteer view (hide for admins)
+    const studentVolView = document.querySelector('.student-volunteer-view');
+    if (studentVolView) {
+        studentVolView.classList.toggle('hidden', isAdmin);
+    }
+
     // Show volunteer-only elements for students
     document.querySelectorAll('.volunteer-only').forEach(el => {
         el.classList.toggle('hidden', currentUser.role !== 'student');
@@ -3442,11 +3448,15 @@ function showVolunteerRequests(view = 'pending') {
     showVolunteerRequests.currentView = view;
     
     const requests = volunteers.filter(v => v.status === 'pending');
-    const container = document.querySelector('.section.active .container');
+    
+    // IMPORTANT: Write to the dedicated admin container, NOT the whole page container
+    const container = document.getElementById('adminVolunteerManagementContainer');
 
     if (!container) return;
-
-    // Replace container content with admin view
+    
+    // Make the admin container visible
+    container.classList.remove('hidden');
+    container.style.marginTop = '20px';
     container.innerHTML = `
         <div class="section-header">
             <h1><i class="fas fa-hands-helping"></i> Volunteer Requests</h1>
@@ -3494,7 +3504,7 @@ function showVolunteerRequests(view = 'pending') {
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="volunteerRequestsTable">
                             ${requests.map(request => `
                                 <tr>
                                     <td>${request.name}</td>
@@ -3583,6 +3593,10 @@ function loadAdminData() {
 
 function loadVolunteerRequests() {
     const tbody = document.getElementById('volunteerRequestsTable');
+    if (!tbody) {
+        console.warn('⚠️ volunteerRequestsTable not found in DOM');
+        return;
+    }
     const requests = volunteers.filter(v => v.status === 'pending');
 
     if (requests.length === 0) {
@@ -3618,6 +3632,10 @@ function approveVolunteer(requestId) {
         volunteer.approvedBy = currentUser.email;
 
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+
+        // Create notification for the student
+        createStudentNotification(volunteer.email, 'Volunteer Request Approved', 
+            `Congratulations! Your volunteer request has been approved. You can now upload events.`);
 
         loadVolunteerRequests();
         if (typeof showVolunteerRequests === 'function' && currentUser.role === 'admin') {

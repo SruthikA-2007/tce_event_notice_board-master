@@ -555,6 +555,9 @@
                         </div>
                     </div>
 
+                    <!-- Student-only: Status + Request Form wrapper -->
+                    <div class="student-volunteer-view">
+
                     <!-- Volunteer Status -->
                     <div class="volunteer-status-section">
                         <div class="status-card">
@@ -632,7 +635,7 @@
                                 <input type="file" id="volunteerIdProof" accept=".jpg,.jpeg,.png,.pdf">
                             </div>
                             
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
                                 <i class="fas fa-paper-plane"></i>
                                 Submit Request
                             </button>
@@ -709,7 +712,9 @@
                         </form>
                     </div>
 
-                    <!-- Manage Requests (Admin) - Placeholder container for dynamic content -->
+                    </div> <!-- end student-volunteer-view -->
+
+                    <!-- Manage Requests (Admin Only) -->
                     <div id="adminVolunteerManagementContainer" class="admin-only hidden">
                         <!-- Content will be dynamically loaded here by script.js (showVolunteerRequests) -->
                     </div>
