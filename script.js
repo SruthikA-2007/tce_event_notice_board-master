@@ -62,12 +62,73 @@ function generatePresignedUrl(key) {
     }
 }
 
+// Robust function to extract the S3 Key from a notice object or its S3 URL
+function extractS3Key(notice) {
+    if (notice.s3Key) return notice.s3Key;
+    if (notice.id && typeof notice.id === 'string' && !notice.id.startsWith('http://') && !notice.id.startsWith('https://')) {
+        return notice.id;
+    }
+    if (notice.imageUrl && typeof notice.imageUrl === 'string' && notice.imageUrl.includes('s3') && notice.imageUrl.includes('amazonaws.com')) {
+        try {
+            const url = new URL(notice.imageUrl);
+            let key = decodeURIComponent(url.pathname);
+            if (key.startsWith('/')) {
+                key = key.substring(1);
+            }
+            // For path style bucket urls: s3.amazonaws.com/bucket/key
+            const parts = key.split('/');
+            if (parts[0] === CONFIG.S3_BUCKET_NAME || parts[0] === CONFIG.S3_TEXT_BUCKET_NAME) {
+                return parts.slice(1).join('/');
+            }
+            return key;
+        } catch (e) {
+            console.error('Error parsing S3 URL:', e);
+        }
+    }
+    return null;
+}
+
 function getFreshImageUrl(notice) {
-    const s3Key = notice.s3Key || notice.id;
-    if (s3Key && (s3Key.startsWith('events/') || s3Key.includes('/') || s3Key.startsWith('academic_') || s3Key.startsWith('general_'))) {
+    const s3Key = extractS3Key(notice);
+    if (s3Key) {
         return generatePresignedUrl(s3Key);
     }
     return notice.imageUrl;
+}
+
+// Called from onerror on notice images. Tries to regenerate a fresh presigned URL
+// before falling back to the placeholder, so images never permanently disappear.
+function retryFailedImage(imgEl, noticeId) {
+    // Prevent infinite retry loops
+    if (imgEl.dataset.retried) {
+        const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjRjBGMEYwIi8+CjxwYXRoIGQ9Ik0xNzUgODVIMjI1VjEzNUgxNzVWODVaIiBmaWxsPSIjQ0NDQ0NDIi8+CjxjaXJjbGUgY3g9IjE2NSIgY3k9IjExMCIgcj0iMTUiIGZpbGw9IiNDQ0NDQ0MiLz4KPHBhdGggZD0iTTE0MCAxNTBMMTY1IDEyMEwxODUgMTQwTDIxMCAxMTBMMjYwIDE1MEgxNDBaIiBmaWxsPSIjQUFBQUFBIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iMTgwIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2UgQXZhaWxhYmxlPC90ZXh0Pgo8L3N2Zz4=';
+        imgEl.src = placeholder;
+        imgEl.onerror = null;
+        imgEl.style.background = '#f0f0f0';
+        return;
+    }
+    imgEl.dataset.retried = '1';
+
+    // Try to find the notice by ID and regenerate a fresh URL
+    const notice = notices.find(n => n.id === noticeId);
+    if (notice) {
+        const s3Key = notice.s3Key || notice.id;
+        if (s3Key && s3Client) {
+            console.log('🔄 Retrying image with fresh presigned URL for:', s3Key);
+            const freshUrl = generatePresignedUrl(s3Key);
+            if (freshUrl && freshUrl !== imgEl.src) {
+                imgEl.src = freshUrl;
+                return;
+            }
+        }
+    }
+
+    // If we still can't get a URL, fall back to placeholder
+    imgEl.dataset.retried = 'failed';
+    const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjRjBGMEYwIi8+CjxwYXRoIGQ9Ik0xNzUgODVIMjI1VjEzNUgxNzVWODVaIiBmaWxsPSIjQ0NDQ0NDIi8+CjxjaXJjbGUgY3g9IjE2NSIgY3k9IjExMCIgcj0iMTUiIGZpbGw9IiNDQ0NDQ0MiLz4KPHBhdGggZD0iTTE0MCAxNTBMMTY1IDEyMEwxODUgMTQwTDIxMCAxMTBMMjYwIDE1MEgxNDBaIiBmaWxsPSIjQUFBQUFBIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iMTgwIiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2UgQXZhaWxhYmxlPC90ZXh0Pgo8L3N2Zz4=';
+    imgEl.src = placeholder;
+    imgEl.onerror = null;
+    imgEl.style.background = '#f0f0f0';
 }
 
 // Enhanced public URL generation with multiple fallback strategies
@@ -135,6 +196,10 @@ window.grantVolunteerAccess = function (email = 'sruthikaks@student.tce.edu') {
         });
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(updatedVolunteers));
         console.log('✅ Volunteer access granted for:', email);
+        if (typeof saveVolunteersToS3 === 'function') {
+            volunteers = updatedVolunteers;
+            saveVolunteersToS3();
+        }
     } else {
         // Create new approved volunteer
         const newVolunteer = {
@@ -155,6 +220,9 @@ window.grantVolunteerAccess = function (email = 'sruthikaks@student.tce.edu') {
         volunteers.push(newVolunteer);
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
         console.log('✅ New volunteer access created for:', email);
+        if (typeof saveVolunteersToS3 === 'function') {
+            saveVolunteersToS3();
+        }
     }
 
     return window.checkVolunteerStatus(email);
@@ -386,16 +454,20 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function initializeApp() {
-    // Initial cleanup of test volunteer if exists
-    const testVolunteerEmail = 'sruthikaks@student.tce.edu';
-    let storedVolunteers = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.VOLUNTEERS) || '[]');
-    if (storedVolunteers.length > 0) {
-        const filteredVolunteers = storedVolunteers.filter(v => v.email !== testVolunteerEmail);
-        if (filteredVolunteers.length !== storedVolunteers.length) {
-            localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(filteredVolunteers));
-            console.log('🧹 Cleaned up test volunteer:', testVolunteerEmail);
-        }
+    // Load volunteers from LocalStorage immediately for instant UI response
+    const storedVolunteers = localStorage.getItem(CONFIG.STORAGE_KEYS.VOLUNTEERS);
+    if (storedVolunteers) {
+        volunteers = JSON.parse(storedVolunteers);
+        console.log('📥 Initialized volunteers from LocalStorage:', volunteers.length);
     }
+
+    // Also load from AWS S3 in the background to ensure we have the latest global data
+    // This will happen after AWS is initialized
+    setTimeout(() => {
+        if (typeof loadVolunteersFromS3 === 'function') {
+            loadVolunteersFromS3();
+        }
+    }, 2000);
 
     // Check if user is already logged in
     checkExistingSession();
@@ -1021,6 +1093,10 @@ function acceptVolunteerRequest(requestId) {
 
     console.log('💾 Saved updated volunteers to localStorage');
 
+    if (typeof saveVolunteersToS3 === 'function') {
+        saveVolunteersToS3();
+    }
+
     // Create notification for the student
     createVolunteerNotification(request.email, 'accepted', request.name);
 
@@ -1066,22 +1142,23 @@ function rejectVolunteerRequest(requestId) {
 
     console.log('👤 Found request to reject:', request.name);
 
-    // Ask for rejection reason
-    const reason = prompt('Please provide a reason for rejection (optional):');
-
     // Update request status
     request.status = 'rejected';
     request.rejectedAt = new Date().toISOString();
     request.rejectedBy = currentUser.email;
-    request.rejectionReason = reason || 'No reason provided';
+    request.rejectionReason = 'No reason provided';
 
     // Save to localStorage
     localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
 
     console.log('💾 Saved updated volunteers to localStorage');
 
+    if (typeof saveVolunteersToS3 === 'function') {
+        saveVolunteersToS3();
+    }
+
     // Create notification for the student
-    createVolunteerNotification(request.email, 'rejected', request.name, reason);
+    createVolunteerNotification(request.email, 'rejected', request.name, 'No reason provided');
 
     // Remove the request item from DOM with animation
     const requestItem = document.querySelector(`[data-request-id="${requestId}"]`);
@@ -1192,6 +1269,10 @@ function removeVolunteer(volunteerId) {
         // Save to localStorage
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
 
+        if (typeof saveVolunteersToS3 === 'function') {
+            saveVolunteersToS3();
+        }
+
         // Create notification for the student
         createStudentNotification(volunteer.email, 'Volunteer Access Revoked', 
             `Your volunteer uploader access has been revoked by an administrator.`);
@@ -1274,6 +1355,10 @@ function removeVolunteer(volunteerId) {
     volunteer.revokedBy = currentUser.email;
 
     localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+
+    if (typeof saveVolunteersToS3 === 'function') {
+        saveVolunteersToS3();
+    }
     
     showToast(`${volunteer.name} has been removed from approved volunteers.`, 'info');
     
@@ -1828,6 +1913,124 @@ Searchable keywords: ${eventData.title} ${eventData.category} ${eventData.descri
     });
 }
 
+// AWS S3 persistence for Volunteers
+async function loadVolunteersFromS3() {
+    if (!s3Client) {
+        console.warn('⚠️ S3 client not initialized yet. Retrying...');
+        return;
+    }
+
+    console.log('📂 Loading volunteer data from AWS S3...');
+    
+    try {
+        const params = {
+            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+            Key: 'volunteers/master_list.json'
+        };
+
+        const result = await s3Client.getObject(params).promise();
+        const remoteVolunteers = JSON.parse(result.Body.toString());
+
+        if (Array.isArray(remoteVolunteers)) {
+            // Safe merge to prevent local data loss when S3 sync is pending
+            const merged = [];
+            const remoteMap = {};
+            remoteVolunteers.forEach(v => {
+                const k = v.email || v.id;
+                if (k) remoteMap[k] = v;
+            });
+
+            const localMap = {};
+            volunteers.forEach(v => {
+                const k = v.email || v.id;
+                if (k) localMap[k] = v;
+            });
+
+            const allKeys = new Set([...Object.keys(remoteMap), ...Object.keys(localMap)]);
+            allKeys.forEach(k => {
+                const localVal = localMap[k];
+                const remoteVal = remoteMap[k];
+
+                if (localVal && !remoteVal) {
+                    // Only exists locally
+                    merged.push(localVal);
+                } else if (!localVal && remoteVal) {
+                    // Only exists on S3
+                    merged.push(remoteVal);
+                } else {
+                    // Exists in both. Compare status.
+                    if (remoteVal.status === 'approved' || remoteVal.status === 'rejected' || remoteVal.status === 'removed') {
+                        // Admin decision is authoritative
+                        merged.push(remoteVal);
+                    } else if (localVal.status === 'pending' && remoteVal.status !== 'pending') {
+                        // Keep local pending request
+                        merged.push(localVal);
+                    } else {
+                        merged.push(remoteVal || localVal);
+                    }
+                }
+            });
+
+            // Deduplicate
+            const uniqueMerged = [];
+            const seen = new Set();
+            merged.forEach(v => {
+                const k = v.email || v.id;
+                if (!seen.has(k)) {
+                    seen.add(k);
+                    uniqueMerged.push(v);
+                }
+            });
+
+            volunteers = uniqueMerged;
+            localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+            console.log('✅ Synchronized volunteers from S3 with local fallback:', volunteers.length);
+            
+            // Update UI if user is on relevant page
+            if (document.getElementById('volunteerSection') && !document.getElementById('volunteerSection').classList.contains('hidden')) {
+                loadVolunteerData();
+            }
+            if (document.getElementById('adminVolunteerManagementContainer') && !document.getElementById('adminVolunteerManagementContainer').classList.contains('hidden')) {
+                loadVolunteerRequests();
+                updateAdminStats();
+            }
+        }
+    } catch (error) {
+        if (error.code === 'NoSuchKey') {
+            console.log('ℹ️ No volunteer data found on S3 yet. Bootstrapping cloud from local data...');
+            // If we have local data but nothing in S3, upload the local data now
+            if (volunteers.length > 0) {
+                saveVolunteersToS3();
+            }
+        } else {
+            console.error('❌ Error loading volunteers from S3:', error);
+        }
+    }
+}
+
+async function saveVolunteersToS3() {
+    if (!s3Client) {
+        console.error('❌ Cannot save to S3: client not initialized');
+        return;
+    }
+
+    console.log('💾 Uploading updated volunteer list to S3...');
+    
+    try {
+        const params = {
+            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+            Key: 'volunteers/master_list.json',
+            Body: JSON.stringify(volunteers, null, 2),
+            ContentType: 'application/json'
+        };
+
+        await s3Client.upload(params).promise();
+        console.log('✅ Volunteers master list updated on S3');
+    } catch (error) {
+        console.error('❌ Failed to sync volunteers to S3:', error);
+    }
+}
+
 // Load notices from S3 bucket
 async function loadNoticesFromS3() {
     try {
@@ -1953,20 +2156,22 @@ async function loadNotices() {
         const storedNotices = localStorage.getItem(CONFIG.STORAGE_KEYS.NOTICES);
         if (storedNotices) {
             notices = JSON.parse(storedNotices);
-            
-            // Refresh URLs for S3 images to prevent expiration (Presigned URLs only last 24 hours)
+
+            // Always regenerate presigned URLs for ALL S3-backed notices on load.
+            // Presigned URLs expire after 24 hours; without refresh images disappear.
             notices = notices.map(notice => {
-                // Try to get S3 key from s3Key property, or fallback to id
-                const s3Key = notice.s3Key || notice.id; 
-                
-                if (s3Key && (s3Key.startsWith('events/') || s3Key.includes('/'))) {
-                    console.log('🔄 Refreshing expired URL for:', s3Key);
-                    notice.imageUrl = generatePresignedUrl(s3Key);
-                    // Ensure s3Key is explicitly set for future cycles
-                    notice.s3Key = s3Key;
+                const s3Key = extractS3Key(notice);
+                if (s3Key) {
+                    console.log('🔄 Refreshing presigned URL for:', s3Key);
+                    const freshUrl = generatePresignedUrl(s3Key);
+                    notice.imageUrl = freshUrl;
+                    notice.s3Key = s3Key; // ensure s3Key is always stored
                 }
                 return notice;
             });
+
+            // Persist the refreshed URLs back to localStorage
+            localStorage.setItem(CONFIG.STORAGE_KEYS.NOTICES, JSON.stringify(notices));
         }
 
         // Then try to load from S3
@@ -2025,7 +2230,9 @@ function renderNotices() {
             <img src="${getFreshImageUrl(notice)}"
                  alt="${notice.title}"
                  class="notice-image"
-                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNTAgMTAwSDI1MFYxNTBIMTUwVjEwMFoiIGZpbGw9IiNDQ0NDQ0MiLz4KPGNpcmNsZSBjeD0iMTIwIiBjeT0iMTI1IiByPSIyMCIgZmlsbD0iI0NDQ0NDQyIvPgo8cGF0aCBkPSJNMTgwIDE2MEgyMjBWMjAwSDE4MFYxNjBaIiBmaWxsPSIjQ0NDQ0NDIi8+CjxwYXRoIGQ9Ik0yNDAgMTYwSDI4MFYyMDBIMjQwVjE2MFoiIGZpbGw9IiNDQ0NDQ0MiLz4KPHRleHQgeD0iMjAwIiB5PSI5MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5OTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSBOb3QgQXZhaWxhYmxlPC90ZXh0Pgo8L3N2Zz4=';this.onerror=null;this.style.background='#f5f5f5';">
+                 data-notice-id="${notice.id}"
+                 onerror="retryFailedImage(this, '${notice.id.replace(/'/g, "\\'")}')"
+            >
             <div class="notice-content">
                 <h3 class="notice-title">${notice.title}</h3>
                 <div class="notice-meta">
@@ -3225,10 +3432,14 @@ function submitVolunteerRequest(formData) {
                 appliedAt: new Date().toISOString(),
                 rejectionReason: null
             };
-            console.log('📝 Creating new volunteer application:', application);
             volunteers.push(application);
         }
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+        
+        // Sync to AWS S3
+        if (typeof saveVolunteersToS3 === 'function') {
+            saveVolunteersToS3();
+        }
 
         console.log('💾 Saved volunteers to localStorage:', volunteers.length);
 
@@ -3663,12 +3874,18 @@ function approveVolunteer(requestId) {
         volunteer.approvedBy = currentUser.email;
 
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+        
+        // Sync to AWS S3
+        if (typeof saveVolunteersToS3 === 'function') {
+            saveVolunteersToS3();
+        }
 
         // Create notification for the student
         createStudentNotification(volunteer.email, 'Volunteer Request Approved', 
             `Congratulations! Your volunteer request has been approved. You can now upload events.`);
 
-        loadVolunteerRequests();
+        // Force reload of UI
+        if (typeof loadVolunteerRequests === 'function') loadVolunteerRequests();
         if (typeof showVolunteerRequests === 'function' && currentUser.role === 'admin') {
             showVolunteerRequests(showVolunteerRequests.currentView || 'pending');
         }
@@ -3694,17 +3911,23 @@ function rejectVolunteer(requestId) {
 
         // Save to localStorage
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
+        
+        // Sync to AWS S3
+        if (typeof saveVolunteersToS3 === 'function') {
+            saveVolunteersToS3();
+        }
 
         // Create rejection notification for the student
         createStudentNotification(volunteer.email, 'Volunteer Request Rejected',
-            `Your volunteer request has been rejected. You can reapply if you wish.`);
+            'Your volunteer request has been rejected. You can reapply if you wish.');
 
-        loadVolunteerRequests();
+        // Force reload of UI
+        if (typeof loadVolunteerRequests === 'function') loadVolunteerRequests();
         if (typeof showVolunteerRequests === 'function' && currentUser.role === 'admin') {
             showVolunteerRequests(showVolunteerRequests.currentView || 'pending');
         }
         updateAdminStats();
-        showToast(`Rejected ${volunteer.name}'s application and notified student`, 'success');
+        showToast(`Rejected volunteer request from ${volunteer.name}`, 'info');
     }
 }
 
@@ -3894,11 +4117,9 @@ function viewNotice(noticeId) {
     document.getElementById('modalPriority').textContent = notice.priority;
     document.getElementById('modalDescription').textContent = notice.description || 'No description available';
     const modalImg = document.getElementById('modalImage');
-    modalImg.src = notice.imageUrl;
+    modalImg.src = getFreshImageUrl(notice);
     modalImg.onerror = function () {
-        this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDgwMCA1MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNTAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0zMDAgMjAwSDUwMFYzMDBIMzAwVjIwMFoiIGZpbGw9IiNDQ0NDQ0MiLz4KPGNpcmNsZSBjeD0iMjQwIiBjeT0iMjUwIiByPSI0MCIgZmlsbD0iI0NDQ0NDQyIvPgo8cGF0aCBkPSJNMzYwIDMyMEg0NDBWNDAwSDM2MFYzMjBaIiBmaWxsPSIjQ0NDQ0NDIiLz4KPHA+PHRleHQgeD0iNDAwIiB5PSIxODAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SW1hZ2UgTm90IEF2YWlsYWJsZTwvdGV4dD48L3A+Cjwvc3ZnPg==';
-        this.onerror = null;
-        this.style.background = '#f5f5f5';
+        retryFailedImage(this, notice.id);
     };
 
     // Set up delete button
