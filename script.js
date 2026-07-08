@@ -700,6 +700,9 @@ function showMainApp() {
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('mainApp').classList.remove('hidden');
 
+    // Clear previous chat history to avoid leakage between accounts
+    clearChatHistory();
+
     // Update UI with user info
     updateUserInfo();
 
@@ -2602,6 +2605,22 @@ function formatFileSize(bytes) {
 }
 
 // Chatbot Functionality
+function clearChatHistory() {
+    const messagesContainer = document.getElementById('chatMessages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div class="message bot-message">
+                <div class="message-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <p>Hello! I'm your TCE Event Assistant. I can help you find information about the events and notices on the board.</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
 function setupChatForm() {
     console.log('🤖 Setting up chatbot...');
     console.log('🤖 CONFIG.USE_MOCK_CHATBOT:', CONFIG.USE_MOCK_CHATBOT);
@@ -4462,6 +4481,9 @@ function showToast(message, type = 'info') {
 function logout() {
     currentUser = null;
     localStorage.removeItem(CONFIG.STORAGE_KEYS.USER);
+
+    // Clear chat history
+    clearChatHistory();
 
     // Sign out from Google if available
     if (typeof google !== 'undefined' && google.accounts) {
