@@ -3908,35 +3908,8 @@ function loadVolunteerData() {
 }
 
 function loadStudentNotifications() {
-    if (!currentUser || currentUser.role !== 'student') return;
-
-    const notifications = JSON.parse(localStorage.getItem('volunteer_notifications') || '[]');
-    const userNotifications = notifications.filter(n => n.email === currentUser.email && !n.read);
-
-    const notificationsContainer = document.getElementById('studentNotifications');
-
-    if (userNotifications.length > 0) {
-        notificationsContainer.innerHTML = `
-            <div class="notification-badge">
-                <span class="badge-count">${userNotifications.length}</span>
-                <span class="badge-text">New Notification${userNotifications.length > 1 ? 's' : ''}</span>
-            </div>
-        `;
-
-        // Show notification popups
-        userNotifications.forEach(notification => {
-            showNotificationPopup(notification);
-            // Mark as read
-            notification.read = true;
-        });
-
-        // Update localStorage
-        localStorage.setItem('volunteer_notifications', JSON.stringify(notifications));
-    } else {
-        notificationsContainer.innerHTML = '';
-    }
-
-    console.log('📬 Loaded student notifications:', userNotifications.length);
+    // Disabled as per user request
+    return;
 }
 
 function showNotificationPopup(notification) {
@@ -4236,34 +4209,8 @@ function createStudentNotification(studentEmail, title, message) {
 
 // Function to load student notifications
 function loadStudentNotifications() {
-    if (!currentUser) return;
-
-    try {
-        const notificationsKey = `student_notifications_${currentUser.email}`;
-        const notifications = JSON.parse(localStorage.getItem(notificationsKey) || '[]');
-
-        const notificationContainer = document.getElementById('studentNotifications');
-        if (notificationContainer) {
-            const unreadCount = notifications.filter(n => !n.read).length;
-
-            if (unreadCount > 0) {
-                notificationContainer.innerHTML = `
-                    <div class="notification-badge" onclick="viewStudentNotifications()">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-count">${unreadCount}</span>
-                    </div>
-                `;
-            } else {
-                notificationContainer.innerHTML = `
-                    <div class="notification-badge" onclick="viewStudentNotifications()">
-                        <i class="fas fa-bell"></i>
-                    </div>
-                `;
-            }
-        }
-    } catch (error) {
-        console.error('❌ Error loading student notifications:', error);
-    }
+    // Disabled as per user request
+    return;
 }
 
 // Function to view student notifications
