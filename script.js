@@ -2684,52 +2684,301 @@ async function askChatbot(question) {
 }
 
 function getFallbackResponse(question) {
-    const lowerQuestion = question.toLowerCase();
-
-    if (lowerQuestion.includes('today') || lowerQuestion.includes('event')) {
-        return "I'm currently unable to access the live event database. Please check the Notices section for the latest events and announcements.";
-    } else if (lowerQuestion.includes('exam') || lowerQuestion.includes('schedule')) {
-        return "For examination schedules and academic information, please visit the Notices section or contact your department office.";
-    } else if (lowerQuestion.includes('technical') || lowerQuestion.includes('workshop')) {
-        return "Technical events and workshops are regularly posted in the Notices section. Check the 'Technical' category filter to find relevant events.";
-    } else if (lowerQuestion.includes('cultural') || lowerQuestion.includes('fest')) {
-        return "Cultural events and festivals are announced through the notice board. Look for notices in the 'Cultural' category.";
-    } else if (lowerQuestion.includes('placement') || lowerQuestion.includes('job')) {
-        return "Placement drives and job opportunities are posted in the 'Placement' category of notices. Check regularly for updates.";
-    } else {
-        return "🔍 I searched through all available notices but didn't find any matches for your query. Try using keywords like 'workshop', 'exam', 'cultural', 'sports', or ask me about 'today' or 'how many' notices we have!";
-    }
+    return `🔍 No results found for "${question}". Try a different keyword or check the Notices section.`;
 }
 
 async function callChatbotAPI(query) {
-    console.log('🚀 Lambda-Integrated Chatbot API called with query:', query);
+    console.log('🚀 Chatbot API called with query:', query);
 
+    // Step 1: Always analyze the live notice board first
+    // This gives accurate, instant answers from real uploaded data
+    const noticeAnswer = analyzeNoticeBoard(query);
+    if (noticeAnswer) {
+        console.log('✅ Notice board analysis returned a result');
+        // Also try Lambda in background for S3 text content, but return notice answer now
+        try {
+            // Attempt Lambda for richer OCR-based answers (non-blocking, best-effort)
+            const lambdaResults = await Promise.race([
+                callTop3SearchLambda(query),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+            ]);
+            if (lambdaResults && lambdaResults.length > 0) {
+                console.log('✅ Lambda also returned results — enriching notice answer');
+                const claudeAnswer = await processLambdaResultsWithClaude(query, lambdaResults);
+                // Combine: notice board answer first, then extracted document content
+                return noticeAnswer + '\n\n---\n📄 **Additional info from uploaded documents:**\n' + claudeAnswer;
+            }
+        } catch (lambdaErr) {
+            console.log('ℹ️ Lambda not available or timed out, using notice board answer:', lambdaErr.message);
+        }
+        return noticeAnswer;
+    }
+
+    // Step 2: No notice board match — try Lambda/Claude for document-level search
     try {
-        // Step 1: Call top3search Lambda to get relevant S3 text data
         const lambdaResults = await callTop3SearchLambda(query);
-
         if (lambdaResults && lambdaResults.length > 0) {
             console.log('✅ Lambda returned results:', lambdaResults.length);
-            // Step 2: Process results with Claude LLM
             return await processLambdaResultsWithClaude(query, lambdaResults);
-        } else {
-            console.log('⚠️ No results from Lambda, returning fallback response');
-            return `📄 I searched through the text files in S3 but couldn't find specific information about "${query}".
-
-🔍 **Search Details:**
-• Query: "${query}"
-• S3 Bucket: tce-circular-text-data/text/
-• Results Found: 0
-
-💡 **Suggestions:**
-• Try different keywords related to your question
-• Ask about general topics like "workshop", "exam", "cultural events"
-• Check if the information you're looking for is available in the uploaded documents`;
         }
     } catch (error) {
-        console.error('❌ Lambda chatbot error:', error);
-        return `🔍 I encountered an error while searching for information: ${error.message}. Please try again with a different query.`;
+        console.log('ℹ️ Lambda not available:', error.message);
     }
+
+    // Step 3: Final fallback — generic helpful response
+    return getFallbackResponse(query);
+}
+
+/**
+ * Analyzes the live notices array to answer user questions.
+ * Handles date queries, category queries, keyword searches, and stats.
+ * Returns a formatted string or null if no relevant answer found.
+ */
+function analyzeNoticeBoard(query) {
+    const q = query.toLowerCase().trim();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (!notices || notices.length === 0) {
+        return '📋 The notice board is currently empty. No events have been uploaded yet.\nAsk the admin to upload some notices!';
+    }
+
+    // ── HELPER: format a notice into a readable card ──────────────────────────
+    function formatNotice(notice, index) {
+        let text = '';
+        if (index !== undefined) text += `${index + 1}. `;
+        text += `**${notice.title}**\n`;
+        if (notice.category) text += `   📁 Category: ${capitalize(notice.category)}\n`;
+        const evDate = notice.eventDate || notice.date;
+        if (evDate) text += `   📅 Date: ${formatDate(evDate)}\n`;
+        if (notice.priority && notice.priority !== 'normal') text += `   ⚡ Priority: ${capitalize(notice.priority)}\n`;
+        if (notice.description && notice.description !== 'No description available') {
+            text += `   📄 ${notice.description.substring(0, 120)}${notice.description.length > 120 ? '...' : ''}\n`;
+        }
+        if (notice.eventOrganizer) text += `   👥 Organised by: ${notice.eventOrganizer}\n`;
+        return text;
+    }
+
+    function capitalize(str) {
+        return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+    }
+
+    function renderList(matches, heading, emptyMsg) {
+        if (matches.length === 0) return `${emptyMsg}`;
+        let out = `${heading} (${matches.length} found):\n\n`;
+        matches.slice(0, 6).forEach((n, i) => { out += formatNotice(n, i) + '\n'; });
+        if (matches.length > 6) out += `...and ${matches.length - 6} more. Check the Notices section for the full list.`;
+        return out;
+    }
+
+    // ── 1. TODAY'S EVENTS ─────────────────────────────────────────────────────
+    if (q.includes('today') || q === 'what is today' || q.includes('happening today')) {
+        const todayStr = today.toISOString().split('T')[0];
+        const todayEvents = notices.filter(n => {
+            const d = n.eventDate || n.date;
+            return d && d.startsWith(todayStr);
+        });
+        if (todayEvents.length === 0) {
+            return `📅 No events are scheduled for today (${today.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'})}).\n\nCheck the Dashboard for upcoming events!`;
+        }
+        return renderList(todayEvents, `📅 Today's Events — ${today.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'})}`, '');
+    }
+
+    // ── 2. TOMORROW'S EVENTS ─────────────────────────────────────────────────
+    if (q.includes('tomorrow')) {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        const tEvents = notices.filter(n => { const d = n.eventDate || n.date; return d && d.startsWith(tomorrowStr); });
+        return renderList(tEvents,
+            `📅 Tomorrow's Events — ${tomorrow.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'})}`,
+            `📅 No events scheduled for tomorrow (${tomorrow.toLocaleDateString('en-US', {month:'long', day:'numeric'})}).`);
+    }
+
+    // ── 3. THIS WEEK ─────────────────────────────────────────────────────────
+    if (q.includes('this week') || q.includes('week')) {
+        const weekEnd = new Date(today);
+        weekEnd.setDate(today.getDate() + 7);
+        const weekEvents = notices.filter(n => {
+            const d = n.eventDate || n.date;
+            if (!d) return false;
+            const evDate = new Date(d);
+            evDate.setHours(0,0,0,0);
+            return evDate >= today && evDate <= weekEnd;
+        }).sort((a,b) => new Date(a.eventDate||a.date) - new Date(b.eventDate||b.date));
+        return renderList(weekEvents, '📅 Events This Week', '📅 No events scheduled for this week.');
+    }
+
+    // ── 4. UPCOMING / NEXT EVENTS ────────────────────────────────────────────
+    if (q.includes('upcoming') || q.includes('next event') || q.includes('future')) {
+        const upcoming = notices.filter(n => {
+            const d = n.eventDate || n.date;
+            if (!d) return false;
+            return new Date(d) >= today;
+        }).sort((a,b) => new Date(a.eventDate||a.date) - new Date(b.eventDate||b.date));
+        return renderList(upcoming, '🔜 Upcoming Events', '🔜 No upcoming events found. All events may have passed.');
+    }
+
+    // ── 5. DATE-SPECIFIC QUERY — "what happened on [date]" ───────────────────
+    // Patterns: "on july 5", "on 2025-07-05", "on 05/07/2025", "july 2025"
+    const datePatterns = [
+        // "on YYYY-MM-DD" or just "YYYY-MM-DD"
+        /(?:on |about |for )?(?:the )?(?:\b)(\d{4}-\d{1,2}-\d{1,2})(?:\b)/i,
+        // "on DD/MM/YYYY" or "MM/DD/YYYY"
+        /(?:on |about |for )?(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i,
+        // "on [Month] [D[D]]" or "on [D[D]] [Month]"
+        /(?:on |about |for |during )?(?:the )?(?:\b)(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i,
+        /(?:on |about |for |during )?(?:the )?\b(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december)(?:,?\s+(\d{4}))?\b/i,
+        // "in [Month] [YYYY]" or "[Month] [YYYY]"
+        /(?:in |during )?(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(\d{4}))?/i,
+    ];
+
+    const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+    let parsedDate = null; // { year, month (1-12), day } – undefined means any
+
+    for (const pat of datePatterns) {
+        const m = q.match(pat);
+        if (!m) continue;
+
+        if (pat.source.startsWith('(?:on |about |for )?(?:the )?(?:\\b)(\\d{4}')) {
+            // YYYY-MM-DD
+            const parts = m[1].split('-').map(Number);
+            parsedDate = { year: parts[0], month: parts[1], day: parts[2] };
+        } else if (pat.source.includes('\\d{1,2}[\\/\\-]\\d{1,2}[\\/\\-]\\d{4}')) {
+            // DD/MM/YYYY  (assume DD/MM/YYYY for Indian locale)
+            const parts = m[1].split(/[\/\-]/).map(Number);
+            parsedDate = { year: parts[2], month: parts[1], day: parts[0] };
+        } else if (pat.source.includes('(january|february|march') && pat.source.includes('(\\d{1,2}')  && m[1]) {
+            // Month Day [Year]
+            const month = monthNames.indexOf(m[1].toLowerCase()) + 1;
+            parsedDate = { month, day: parseInt(m[2]), year: m[3] ? parseInt(m[3]) : today.getFullYear() };
+        } else if (pat.source.includes('(\\d{1,2})(?:st|nd|rd|th)?\\s+(january') && m[1]) {
+            // Day Month [Year]
+            const month = monthNames.indexOf(m[2].toLowerCase()) + 1;
+            parsedDate = { month, day: parseInt(m[1]), year: m[3] ? parseInt(m[3]) : today.getFullYear() };
+        } else if (pat.source.includes('(?:in |during )?') && m[1]) {
+            // Month [Year] only
+            const month = monthNames.indexOf(m[1].toLowerCase()) + 1;
+            parsedDate = { month, year: m[2] ? parseInt(m[2]) : undefined };
+        }
+        if (parsedDate) break;
+    }
+
+    // Only trigger date filter if query clearly asks about past/future events on a date
+    if (parsedDate && (q.includes('event') || q.includes('happen') || q.includes('what') || q.includes('notice') || q.includes('on ') || q.includes('in ') || q.includes('during') || q.includes('held') || q.includes('schedule') || q.includes('today') || q.includes('took place'))) {
+        const dateMatches = notices.filter(n => {
+            const d = n.eventDate || n.date;
+            if (!d) return false;
+            const nd = new Date(d);
+            if (isNaN(nd)) return false;
+            const ny = nd.getFullYear(), nm = nd.getMonth() + 1, nd2 = nd.getDate();
+            if (parsedDate.year && ny !== parsedDate.year) return false;
+            if (parsedDate.month && nm !== parsedDate.month) return false;
+            if (parsedDate.day && nd2 !== parsedDate.day) return false;
+            return true;
+        });
+
+        let dateLabel = '';
+        if (parsedDate.day && parsedDate.month) {
+            dateLabel = `${parsedDate.day} ${monthNames[parsedDate.month-1].charAt(0).toUpperCase()+monthNames[parsedDate.month-1].slice(1)}${parsedDate.year ? ' ' + parsedDate.year : ''}`;
+        } else if (parsedDate.month) {
+            dateLabel = `${monthNames[parsedDate.month-1].charAt(0).toUpperCase()+monthNames[parsedDate.month-1].slice(1)}${parsedDate.year ? ' ' + parsedDate.year : ''}`;
+        } else if (parsedDate.year) {
+            dateLabel = String(parsedDate.year);
+        }
+
+        return renderList(dateMatches,
+            `📅 Events on ${dateLabel}`,
+            `📅 No events found for ${dateLabel}.\n\nTry browsing the Notices section or check a different date.`);
+    }
+
+    // ── 6. CATEGORY QUERIES ──────────────────────────────────────────────────
+    const categoryMap = {
+        'technical':  ['technical', 'tech', 'workshop', 'hackathon', 'coding', 'programming'],
+        'cultural':   ['cultural', 'culture', 'dance', 'music', 'arts', 'fest', 'festival', 'drama', 'skit'],
+        'sports':     ['sports', 'sport', 'game', 'games', 'athletic', 'cricket', 'football', 'basketball'],
+        'academic':   ['academic', 'academics', 'lecture', 'seminar', 'symposium'],
+        'examination':['exam', 'exams', 'examination', 'test', 'hall ticket'],
+        'placement':  ['placement', 'job', 'recruit', 'career', 'interview', 'company'],
+        'volunteer':  ['volunteer', 'volunteers', 'volunteering']
+    };
+
+    let categoryHit = null;
+    outerLoop:
+    for (const [cat, keywords] of Object.entries(categoryMap)) {
+        for (const kw of keywords) {
+            if (q.includes(kw)) { categoryHit = cat; break outerLoop; }
+        }
+    }
+
+    if (categoryHit) {
+        const catMatches = notices.filter(n =>
+            (n.category && n.category.toLowerCase() === categoryHit) ||
+            (n.title && n.title.toLowerCase().includes(categoryHit)) ||
+            categoryMap[categoryHit].some(kw => (n.title || '').toLowerCase().includes(kw) || (n.description || '').toLowerCase().includes(kw))
+        );
+        return renderList(catMatches,
+            `📋 ${capitalize(categoryHit)} Events`,
+            `📋 No ${categoryHit} events found in the notice board right now.\nCheck back later or browse all notices.`);
+    }
+
+    // ── 7. STATISTICS / "HOW MANY" ────────────────────────────────────────────
+    if (q.includes('how many') || q.includes('count') || q.includes('total') || q.includes('statistics') || q.includes('stats')) {
+        const cats = ['academic','technical','cultural','sports','examination','placement','volunteer','general'];
+        let stats = `📊 **Notice Board Statistics**\n\n`;
+        stats += `Total Notices: **${notices.length}**\n\n`;
+        stats += `By Category:\n`;
+        cats.forEach(c => {
+            const count = notices.filter(n => n.category && n.category.toLowerCase() === c).length;
+            if (count > 0) stats += `  • ${capitalize(c)}: ${count}\n`;
+        });
+        const upcoming = notices.filter(n => { const d = n.eventDate||n.date; return d && new Date(d) >= today; });
+        stats += `\nUpcoming Events: **${upcoming.length}**`;
+        return stats;
+    }
+
+    // ── 8. LATEST / RECENT NOTICES ───────────────────────────────────────────
+    if (q.includes('latest') || q.includes('recent') || q.includes('new notice') || q.includes('last notice')) {
+        const latest = [...notices].sort((a,b) => new Date(b.date||b.uploadedAt) - new Date(a.date||a.uploadedAt)).slice(0, 5);
+        return renderList(latest, '🆕 Latest Notices', '🆕 No notices available yet.');
+    }
+
+    // ── 9. ALL EVENTS / SHOW ALL ──────────────────────────────────────────────
+    if (q === 'all events' || q === 'show all' || q === 'list all' || q === 'all notices') {
+        return renderList(notices, '📋 All Notices', '📋 No notices on the board.');
+    }
+
+    // ── 10. KEYWORD SEARCH ───────────────────────────────────────────────────
+    // Split query into meaningful keywords (filter stop words)
+    const stopWords = new Set(['the','a','an','is','are','was','were','what','when','where','who','which','how','do','does','did','about','for','event','events','notice','notices','tell','me','show','find','list','any','have','has','their']);
+    const keywords = q.split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+
+    if (keywords.length > 0) {
+        const scored = notices.map(n => {
+            const searchText = [
+                n.title || '',
+                n.description || '',
+                n.category || '',
+                n.eventOrganizer || '',
+                n.uploadedBy || ''
+            ].join(' ').toLowerCase();
+
+            let score = 0;
+            keywords.forEach(kw => {
+                if (searchText.includes(kw)) score += (n.title||'').toLowerCase().includes(kw) ? 4 : 2;
+            });
+            return { notice: n, score };
+        }).filter(x => x.score > 0).sort((a,b) => b.score - a.score);
+
+        if (scored.length > 0) {
+            const matched = scored.map(x => x.notice);
+            return renderList(matched, `🔍 Results for "${query}"`, '');
+        }
+    }
+
+    // No match — return null so we can try Lambda/fallback
+    return null;
 }
 
 // Call top3search Lambda function
@@ -3198,12 +3447,20 @@ function addMessage(content, type) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${type}-message`;
 
+    // Format bot messages: convert **bold** and newlines to HTML
+    let formattedContent = content;
+    if (type === 'bot') {
+        formattedContent = content
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\n/g, '<br>');
+    }
+
     messageDiv.innerHTML = `
         <div class="message-avatar">
             <i class="fas fa-${type === 'user' ? 'user' : 'robot'}"></i>
         </div>
         <div class="message-content">
-            <p>${content}</p>
+            <p>${formattedContent}</p>
         </div>
     `;
 
@@ -3242,33 +3499,22 @@ function removeTypingIndicator() {
 }
 
 function initializeChatbot() {
-    // Test API connectivity
-    testChatbotAPI();
+    // No startup API test needed — chatbot analyses notice board data locally
+    console.log('🤖 Chatbot initialized with local notice board analysis');
 }
 
 async function testChatbotAPI() {
+    // Silently test API connectivity (no messages added to chat)
     try {
         console.log('Testing chatbot API...');
         const response = await fetch(CONFIG.API_GATEWAY_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ q: 'test' })
         });
-
-        console.log('API Response Status:', response.status);
-        const data = await response.text();
-        console.log('API Response:', data);
-
-        if (response.ok) {
-            addMessage('✅ Chatbot is connected and ready!', 'bot');
-        } else {
-            addMessage('⚠️ Chatbot API is having issues. Using offline mode.', 'bot');
-        }
+        console.log('API Response Status:', response.status, response.ok ? '✅ Online' : '⚠️ Error');
     } catch (error) {
-        console.error('API Test Error:', error);
-        addMessage('⚠️ Chatbot is in offline mode. I can still help with basic questions!', 'bot');
+        console.log('ℹ️ External API not reachable, using local notice board analysis:', error.message);
     }
 }
 
@@ -4644,3 +4890,4 @@ window.checkMyStatus = function () {
 
     return volunteer;
 };
+
