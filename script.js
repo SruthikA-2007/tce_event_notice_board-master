@@ -44,17 +44,27 @@ const CONFIG = {
 let s3Client = null;
 let lambdaClient = null;
 
-function generatePresignedUrl(key) {
+function generatePresignedUrl(key, isDownload = false) {
     // Generates a secure, temporary URL. 
     // This is now called on every render to ensure it NEVER expires for the user.
     try {
-        if (!s3Client) return getPublicS3Url(key);
+        if (!s3Client) {
+            const url = getPublicS3Url(key);
+            if (isDownload) {
+                return url + (url.includes('?') ? '&' : '?') + `response-content-disposition=attachment%3B%20filename%3D%22${encodeURIComponent(key)}%22`;
+            }
+            return url;
+        }
 
         const params = {
             Bucket: CONFIG.S3_BUCKET_NAME,
             Key: key,
             Expires: 86400 // 24 hours
         };
+
+        if (isDownload) {
+            params.ResponseContentDisposition = `attachment; filename="${key}"`;
+        }
 
         return s3Client.getSignedUrl('getObject', params);
     } catch (error) {
@@ -4403,6 +4413,8 @@ function viewNotice(noticeId) {
     const notice = notices.find(n => n.id === noticeId);
     if (!notice) return;
 
+    window.currentViewedNotice = notice; // Store the currently viewed notice
+
     const modal = document.getElementById('noticeModal');
     document.getElementById('modalTitle').textContent = notice.title;
     document.getElementById('modalCategory').textContent = notice.category;
@@ -4426,13 +4438,67 @@ function closeModal(modalId = 'noticeModal') {
     document.getElementById(modalId).classList.remove('show');
 }
 
-function downloadNotice() {
-    // Implement download functionality
+async function downloadNotice() {
+    const notice = window.currentViewedNotice;
     const imageUrl = document.getElementById('modalImage').src;
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = 'notice.jpg';
-    link.click();
+    if (!imageUrl) {
+        showToast('No image available to download', 'error');
+        return;
+    }
+
+    const title = notice ? (notice.title || 'notice') : 'notice';
+    const fileName = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_') + '.jpg';
+
+    showToast('Downloading poster...', 'info');
+
+    // Strategy 1: Attempt S3 ResponseContentDisposition attachment for clean cross-origin download
+    const s3Key = notice ? extractS3Key(notice) : null;
+    if (s3Key && imageUrl.includes('amazonaws.com')) {
+        try {
+            const downloadUrl = generatePresignedUrl(s3Key, true);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Download started', 'success');
+            return;
+        } catch (error) {
+            console.warn('AWS SDK Download URL generation failed, falling back:', error);
+        }
+    }
+
+    try {
+        // Fetch the image as blob to bypass cross-origin browser limitations
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error();
+        
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Revoke the blob URL
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        showToast('Download complete', 'success');
+    } catch (error) {
+        console.warn('CORS restrict direct download, opening in new tab instead:', error);
+        // Fallback: Open in new tab
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.target = '_blank';
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Please right-click and save the image', 'info');
+    }
 }
 
 function deleteNotice(noticeId) {
