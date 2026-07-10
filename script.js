@@ -1247,7 +1247,7 @@ function renderApprovedVolunteers(volunteersList) {
                 </div>
             </td>
             <td>${v.rollNumber || '-'}</td>
-            <td>${v.department || '-'}</td>
+            <td>${(v.department || '-').toUpperCase()}</td>
             <td>${v.approvedAt ? formatDate(v.approvedAt) : 'N/A'}</td>
             <td>
                 <div class="table-actions">
@@ -4058,7 +4058,7 @@ function showVolunteerRequests(view = 'pending') {
                                 <tr>
                                     <td>${request.name}</td>
                                     <td>${request.email}</td>
-                                    <td>${request.department || 'N/A'}</td>
+                                    <td>${(request.department || 'N/A').toUpperCase()}</td>
                                     <td>${request.club || 'N/A'}</td>
                                     <td>${formatDate(request.appliedAt || request.date)}</td>
                                     <td><span class="status-badge pending">Pending</span></td>
@@ -4169,7 +4169,7 @@ function loadVolunteerRequests() {
         <tr>
             <td>${request.name}</td>
             <td>${request.email}</td>
-            <td>${request.department}</td>
+            <td>${(request.department || 'N/A').toUpperCase()}</td>
             <td>${request.club}</td>
             <td>${formatDate(request.appliedAt)}</td>
             <td><span class="status-badge ${request.status}">${request.status}</span></td>
