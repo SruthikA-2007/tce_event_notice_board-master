@@ -2,7 +2,7 @@
 
 // 1. Add AWS SDK script to HTML head (add this to your HTML file):
 /*
-<script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.24.min.js"></script>
+<script src="https://sdk.amazonaws.com/js/aws-sdk-2.1488.0.min.js"></script>
 */
 
 // 2. Enhanced AWS initialization with better error handling

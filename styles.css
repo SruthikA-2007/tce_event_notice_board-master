@@ -2,18 +2,18 @@
 
 /* CSS Variables */
 :root {
-    --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --accent-color: #e74c3c;
-    --success-color: #27ae60;
-    --warning-color: #f39c12;
-    --danger-color: #e74c3c;
-    --light-color: #ecf0f1;
-    --dark-color: #2c3e50;
-    --gray-color: #95a5a6;
+    --primary-color: #800000;      /* Deep Institutional Maroon */
+    --secondary-color: #a81c24;    /* Light Maroon/Crimson for hover states/secondary details */
+    --accent-color: #c5a059;       /* Muted Gold Accent */
+    --success-color: #1e7e34;
+    --warning-color: #e0a800;
+    --danger-color: #bd2130;
+    --light-color: #FAF8F5;        /* Warm light grey/cream background */
+    --dark-color: #2b1113;         /* Deep maroon black for text */
+    --gray-color: #726264;         /* Desaturated maroon grey */
     --white-color: #ffffff;
 
-    --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-family: 'Inter', system-ui, -apple-system, blinkmacsystemfont, sans-serif;
     --font-size-xs: 0.75rem;
     --font-size-sm: 0.875rem;
     --font-size-base: 1rem;
@@ -22,13 +22,13 @@
     --font-size-2xl: 1.5rem;
     --font-size-3xl: 1.875rem;
 
-    --border-radius: 8px;
-    --border-radius-lg: 12px;
-    --transition: all 0.3s ease;
+    --border-radius: 6px;
+    --border-radius-lg: 10px;
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.08);
+    --shadow: 0 4px 6px rgba(43, 17, 19, 0.06), 0 1px 3px rgba(43, 17, 19, 0.1);
+    --shadow-lg: 0 12px 24px rgba(43, 17, 19, 0.08), 0 4px 12px rgba(43, 17, 19, 0.04);
 
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
@@ -50,7 +50,7 @@ body {
     font-size: var(--font-size-base);
     line-height: 1.6;
     color: var(--dark-color);
-    background-color: #f8f9fa;
+    background-color: #f7f5f2; /* Warm soft academic background */
     min-height: 100vh;
 }
 
@@ -65,7 +65,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: radial-gradient(circle at 50% 50%, var(--primary-color) 0%, #4d0000 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -80,109 +80,135 @@ body {
 .loader i {
     font-size: 4rem;
     margin-bottom: var(--spacing);
+    color: var(--accent-color);
     animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
-
     0%,
     100% {
         transform: scale(1);
         opacity: 1;
     }
-
     50% {
-        transform: scale(1.1);
-        opacity: 0.8;
+        transform: scale(1.08);
+        opacity: 0.85;
     }
 }
 
 /* Login Section */
 .login-section {
     min-height: 100vh;
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: linear-gradient(135deg, #4a0000 0%, #800000 50%, #3d0000 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: var(--spacing);
+    padding: var(--spacing-xl) var(--spacing);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle abstract background pattern */
+.login-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 40%, rgba(197, 160, 89, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 60%, rgba(255,255,255, 0.04) 0%, transparent 50%);
+    pointer-events: none;
 }
 
 .login-container {
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
+    position: relative;
+    z-index: 2;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
 
+/* No white card — content floats on dark bg */
 .login-card {
-    background: var(--white-color);
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-lg);
-    overflow: hidden;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
 }
 
 .login-header {
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-    color: var(--white-color);
     text-align: center;
-    padding: var(--spacing-xl) var(--spacing);
+    margin-bottom: 2.25rem;
 }
 
-.login-header i {
-    font-size: 3rem;
-    margin-bottom: var(--spacing);
+.login-welcome {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--gray-color);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
 }
 
 .login-header h1 {
-    font-size: var(--font-size-xl);
-    margin-bottom: var(--spacing-sm);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    letter-spacing: -0.5px;
+    margin-bottom: 0;
 }
 
-.login-header p {
-    opacity: 0.9;
-    font-size: var(--font-size-sm);
+.login-content h2,
+.login-desc {
+    display: none;
 }
 
-.login-content {
-    padding: var(--spacing-xl);
-}
-
-.login-content h2 {
-    color: var(--dark-color);
-    margin-bottom: var(--spacing);
-    text-align: center;
-}
-
-.login-content p {
-    color: var(--gray-color);
-    text-align: center;
-    margin-bottom: var(--spacing-xl);
-}
-
-/* Google Sign-In button container */
-#googleSignInBtn {
-    margin-bottom: var(--spacing-xl);
+/* Google Sign-In button wrapper */
+.google-signin-btn-wrapper {
+    margin-bottom: 1.75rem;
     display: flex;
     justify-content: center;
+    width: 100%;
 }
 
-/* Google Sign-In button styling */
 .google-signin-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--spacing);
+    gap: 0.75rem;
     width: 100%;
-    padding: var(--spacing);
-    background: var(--white-color);
-    border: 2px solid var(--light-color);
-    border-radius: var(--border-radius);
+    padding: 0.85rem 1rem;
+    background: #ffffff;
+    border: none;
+    border-radius: 8px;
     cursor: pointer;
     transition: var(--transition);
-    margin-bottom: var(--spacing-xl);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #3c3c3c;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .google-signin-btn:hover {
-    border-color: var(--secondary-color);
-    box-shadow: var(--shadow);
+    background: #f5f5f5;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}
+
+.google-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+}
+
+.google-icon svg {
+    width: 100%;
+    height: 100%;
 }
 
 /* Styling for the actual Google button rendered by Google */
@@ -190,35 +216,33 @@ div[id^="gsi"] {
     width: 100% !important;
 }
 
-/* Ensure Google button looks good in our theme */
 iframe[title="Sign in with Google Button"] {
     border-radius: var(--border-radius);
-}
-
-.google-icon {
-    width: 24px;
-    height: 24px;
 }
 
 .login-info {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing);
+    gap: 0.6rem;
+    border-top: 1px solid rgba(128,0,0,0.15);
+    padding-top: 1.25rem;
 }
 
 .info-item {
     display: flex;
     align-items: center;
-    gap: var(--spacing);
-    padding: var(--spacing);
-    background: var(--light-color);
-    border-radius: var(--border-radius);
+    gap: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    background: rgba(128,0,0,0.05);
+    border: 1px solid rgba(128,0,0,0.15);
+    border-radius: 8px;
 }
 
 .info-item i {
-    color: var(--secondary-color);
-    font-size: var(--font-size-lg);
+    color: var(--accent-color);
+    font-size: 1.1rem;
     min-width: 20px;
+    text-align: center;
 }
 
 .info-item div {
@@ -227,12 +251,13 @@ iframe[title="Sign in with Google Button"] {
 }
 
 .info-item strong {
-    font-size: var(--font-size-sm);
-    color: var(--dark-color);
+    font-size: 0.82rem;
+    color: var(--primary-color);
+    font-weight: 700;
 }
 
 .info-item span {
-    font-size: var(--font-size-xs);
+    font-size: 0.72rem;
     color: var(--gray-color);
 }
 
@@ -243,16 +268,18 @@ iframe[title="Sign in with Google Button"] {
     flex-direction: column;
 }
 
-/* Header */
+/* Header Redesign */
 .header {
     background: var(--white-color);
-    box-shadow: var(--shadow);
+    box-shadow: 0 2px 10px rgba(43, 17, 19, 0.05);
     position: sticky;
     top: 0;
     z-index: 1000;
 }
 
+/* Primary Application Navigation Bar */
 .navbar {
+    background: var(--white-color);
     padding: 0 var(--spacing-lg);
 }
 
@@ -265,54 +292,70 @@ iframe[title="Sign in with Google Button"] {
     margin: 0 auto;
 }
 
-.nav-brand {
+.nav-brand-logo {
     display: flex;
     align-items: center;
-    gap: var(--spacing);
-    font-size: var(--font-size-xl);
-    font-weight: bold;
-    color: var(--primary-color);
 }
 
-.nav-brand i {
-    font-size: var(--font-size-2xl);
+.tce-logo {
+    height: 48px;
+    width: auto;
+    object-fit: contain;
 }
 
 .nav-menu {
     display: flex;
     list-style: none;
-    gap: var(--spacing-lg);
+    gap: 0.5rem;
+    align-items: center;
+    height: 100%;
 }
 
 .nav-link {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing);
-    color: var(--dark-color);
+    gap: 0.3rem;
+    padding: 1.4rem 0.15rem;
+    margin: 0 0.45rem;
+    color: var(--gray-color);
     text-decoration: none;
-    border-radius: var(--border-radius);
+    font-size: 0.88rem;
+    font-weight: 600;
     transition: var(--transition);
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    white-space: nowrap;
 }
 
-.nav-link:hover,
+.nav-link i {
+    font-size: 0.95rem;
+}
+
+.nav-link:hover {
+    color: var(--primary-color);
+    background: none;
+}
+
 .nav-link.active {
-    background: var(--secondary-color);
-    color: var(--white-color);
+    color: var(--primary-color);
+    background: none;
+    border-color: var(--primary-color);
+    box-shadow: none;
+    font-weight: 700;
 }
 
 .user-menu {
     display: flex;
     align-items: center;
-    gap: var(--spacing);
+    gap: 0.5rem;
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: var(--spacing);
+    gap: 0.75rem;
     cursor: pointer;
-    padding: var(--spacing-sm);
+    padding: 0.4rem 0.75rem;
     border-radius: var(--border-radius);
     transition: var(--transition);
 }
@@ -322,9 +365,10 @@ iframe[title="Sign in with Google Button"] {
 }
 
 .user-avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
+    border: 2px solid var(--primary-color);
     object-fit: cover;
 }
 
@@ -334,13 +378,15 @@ iframe[title="Sign in with Google Button"] {
 }
 
 .user-name {
-    font-weight: bold;
+    font-size: 0.88rem;
+    font-weight: 700;
     color: var(--dark-color);
 }
 
 .user-role {
-    font-size: var(--font-size-xs);
+    font-size: 0.72rem;
     color: var(--gray-color);
+    font-weight: 600;
 }
 
 .dropdown {
@@ -352,24 +398,26 @@ iframe[title="Sign in with Google Button"] {
     border: none;
     color: var(--gray-color);
     cursor: pointer;
-    padding: var(--spacing-sm);
+    padding: 0.25rem;
     border-radius: var(--border-radius);
     transition: var(--transition);
 }
 
 .dropdown-btn:hover {
+    color: var(--primary-color);
     background: var(--light-color);
 }
 
 .dropdown-menu {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 8px);
     right: 0;
     background: var(--white-color);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow-lg);
-    min-width: 200px;
+    min-width: 160px;
     z-index: 1000;
+    border: 1px solid #ebe5df;
     display: none;
 }
 
@@ -380,20 +428,23 @@ iframe[title="Sign in with Google Button"] {
 .dropdown-item {
     display: flex;
     align-items: center;
-    gap: var(--spacing);
-    padding: var(--spacing);
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
     color: var(--dark-color);
+    font-weight: 600;
+    font-size: 0.85rem;
     text-decoration: none;
     transition: var(--transition);
 }
 
 .dropdown-item:hover {
     background: var(--light-color);
+    color: var(--primary-color);
 }
 
 .dropdown-divider {
     height: 1px;
-    background: var(--light-color);
+    background: #ebe5df;
     margin: var(--spacing-xs) 0;
 }
 
@@ -401,16 +452,155 @@ iframe[title="Sign in with Google Button"] {
     display: none;
     background: none;
     border: none;
-    color: var(--dark-color);
-    font-size: var(--font-size-xl);
+    color: var(--primary-color);
+    font-size: 1.25rem;
     cursor: pointer;
-    padding: var(--spacing);
+    padding: 0.5rem;
+}
+
+/* ── Floating Chatbot Widget ─────────────────────────── */
+.chatbot-toggle-btn {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 2000;
+    display: none; /* shown via JS after login */
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: var(--primary-color);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    padding: 0;
+    font-family: var(--font-family);
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(128, 0, 0, 0.4);
+    transition: var(--transition);
+}
+
+.chatbot-toggle-btn:hover {
+    background: var(--secondary-color);
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 0 8px 28px rgba(128, 0, 0, 0.5);
+}
+
+.chatbot-toggle-btn i {
+    font-size: 1.4rem;
+}
+
+.chatbot-toggle-label {
+    display: none;
+}
+
+.chatbot-widget {
+    position: fixed;
+    bottom: 5.5rem;
+    right: 2rem;
+    z-index: 1999;
+    width: 380px;
+    max-height: 520px;
+    background: var(--white-color);
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(43, 17, 19, 0.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #ebe5df;
+    animation: slideUpWidget 0.25s ease;
+}
+
+.chatbot-widget.hidden {
+    display: none;
+}
+
+@keyframes slideUpWidget {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.chatbot-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.chatbot-widget-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.bot-avatar-sm {
+    width: 34px;
+    height: 34px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.bot-name {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.bot-status {
+    display: block;
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+.bot-status i {
+    color: #4ade80;
+    font-size: 0.55rem;
+}
+
+.chatbot-widget-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.8);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: var(--transition);
+}
+
+.chatbot-widget-close:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+}
+
+.chatbot-widget .chatbot-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 260px;
+    max-height: 340px;
+}
+
+.chatbot-widget .chatbot-input {
+    padding: 0.75rem;
+    border-top: 1px solid #ebe5df;
+    background: #faf9f8;
 }
 
 /* Main Content */
 .main-content {
     flex: 1;
-    padding: var(--spacing-xl);
+    padding: var(--spacing-2xl) var(--spacing-xl);
 }
 
 .container {
@@ -580,13 +770,24 @@ iframe[title="Sign in with Google Button"] {
     position: relative;
     flex: 1;
     max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+.search-group::before {
+    content: '\00a0'; /* non-breaking space keeps height same as labeled filters */
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    display: block;
+    visibility: hidden;
 }
 
 .search-group i {
     position: absolute;
     right: var(--spacing);
-    top: 50%;
-    transform: translateY(-50%);
+    bottom: 0.85rem;
     color: var(--gray-color);
 }
 
@@ -1265,6 +1466,10 @@ iframe[title="Sign in with Google Button"] {
     margin-bottom: var(--spacing-xl);
 }
 
+.volunteer-card p {
+    margin-bottom: var(--spacing-lg);
+}
+
 .status-card {
     background: var(--white-color);
     padding: var(--spacing-xl);
@@ -1394,6 +1599,55 @@ iframe[title="Sign in with Google Button"] {
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: var(--transition);
+}
+
+/* Custom file upload button — hides "No file chosen" */
+.custom-file-input {
+    display: none;
+}
+
+.custom-file-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1rem;
+    background: var(--light-color);
+    border: 2px dashed rgba(128, 0, 0, 0.3);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--primary-color);
+    transition: var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.custom-file-label:hover {
+    background: rgba(128, 0, 0, 0.06);
+    border-color: var(--primary-color);
+}
+
+.custom-file-label i {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.custom-file-label span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gray-color);
+    font-weight: 500;
+}
+
+/* Volunteer section submit button */
+.volunteer-submit-btn {
+    width: 100%;
+    margin-top: 1.75rem;
+    padding: 0.85rem;
+    font-size: var(--font-size-base);
 }
 
 .notifications-list {
@@ -1702,6 +1956,19 @@ iframe[title="Sign in with Google Button"] {
 
     .nav-menu.mobile-show {
         left: 0;
+    }
+
+    .nav-link {
+        padding: 1rem var(--spacing);
+        margin: 0;
+        border-bottom: none;
+        border-left: 4px solid transparent;
+        width: 100%;
+    }
+
+    .nav-link.active {
+        border-left-color: var(--primary-color);
+        background: var(--light-color);
     }
 
     .mobile-menu-toggle {
@@ -2339,7 +2606,7 @@ iframe[title="Sign in with Google Button"] {
 }
 
 .no-requests h3 {
-    color: #2c3e50;
+    color: var(--dark-color);
     margin: 0 0 10px 0;
 }
 
@@ -2520,4 +2787,94 @@ iframe[title="Sign in with Google Button"] {
     position: absolute;
     top: 10px;
     right: 20px;
+}
+
+/* ── Volunteer Management Table ─────────────────────── */
+.requests-table-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: var(--border-radius-lg);
+    border: 1px solid #ebe5df;
+}
+
+.requests-table {
+    width: 100%;
+    min-width: 580px;
+    border-collapse: collapse;
+    background: var(--white-color);
+    font-size: 0.875rem;
+}
+
+.requests-table thead tr {
+    background: var(--light-color);
+}
+
+.requests-table th {
+    padding: 0.85rem 1rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--dark-color);
+    white-space: nowrap;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 2px solid #ebe5df;
+}
+
+.requests-table td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid #f0ebe5;
+    color: var(--dark-color);
+    vertical-align: middle;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.requests-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.requests-table tbody tr:hover {
+    background: rgba(128, 0, 0, 0.03);
+}
+
+/* Alert Notification Boxes */
+.alert-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: rgba(128, 0, 0, 0.05);
+    border-left: 4px solid var(--primary-color);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.alert-info i {
+    color: var(--primary-color);
+    font-size: 1.15rem;
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.alert-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.alert-content strong {
+    color: var(--primary-color);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.alert-content p {
+    color: var(--dark-color);
+    font-size: 0.85rem;
+    margin: 0;
+    line-height: 1.4;
 }

@@ -18,6 +18,7 @@ const CONFIG = {
     USE_MOCK_CHATBOT: false, // Disabled - only use real S3 data
     S3_BUCKET_NAME: 'tce-circular-raw-data',
     S3_TEXT_BUCKET_NAME: 'tce-circular-text-data',
+    S3_APPROVED_VOLUNTEERS_BUCKET: 'approvedvolunteers', // Dedicated bucket for approved volunteers
 
     COGNITO_IDENTITY_POOL_ID: 'ap-south-1:1c91f78d-75bc-4cc4-8406-e42677cf87a6',
 
@@ -504,6 +505,9 @@ function setupEventListeners() {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const section = link.dataset.section;
+            if (section === 'volunteer') {
+                showVolunteerRequests.currentView = 'pending';
+            }
             navigateToSection(section);
         });
     });
@@ -535,6 +539,26 @@ function setupEventListeners() {
     setupUploadForm();
     setupVolunteerForm();
     setupChatForm();
+
+    // Floating chatbot widget toggle
+    const chatbotToggle = document.getElementById('chatbotToggle');
+    const chatbotWidget = document.getElementById('chatbotWidget');
+    const closeChatbot = document.getElementById('closeChatbot');
+
+    if (chatbotToggle && chatbotWidget) {
+        chatbotToggle.addEventListener('click', () => {
+            chatbotWidget.classList.toggle('hidden');
+            if (!chatbotWidget.classList.contains('hidden')) {
+                document.getElementById('chatInput').focus();
+            }
+        });
+    }
+
+    if (closeChatbot && chatbotWidget) {
+        closeChatbot.addEventListener('click', () => {
+            chatbotWidget.classList.add('hidden');
+        });
+    }
 
     // Filters and search
     setupFilters();
@@ -717,6 +741,10 @@ function showMainApp() {
 
     // Navigate to dashboard
     navigateToSection('dashboard');
+
+    // Show the floating chatbot button
+    const chatbotToggle = document.getElementById('chatbotToggle');
+    if (chatbotToggle) chatbotToggle.style.display = 'flex';
 }
 
 function resetFilters() {
@@ -900,12 +928,14 @@ function addResubmissionNotice() {
     // Add resubmission notice at the top of the form
     const notice = document.createElement('div');
     notice.id = 'resubmissionNotice';
-    notice.className = 'alert alert-info';
+    notice.className = 'alert-info';
     notice.style.marginBottom = '20px';
     notice.innerHTML = `
         <i class="fas fa-info-circle"></i>
-        <strong>Resubmit Your Application</strong><br>
-        Your previous application was rejected. You can update your information and submit a new application below.
+        <div class="alert-content">
+            <strong>Resubmit Your Application</strong>
+            <p>Your previous application was rejected. You can update your information and submit a new application below.</p>
+        </div>
     `;
 
     // Insert at the beginning of the form container
@@ -1593,9 +1623,6 @@ function loadSectionData(sectionId) {
         case 'upload':
             // Upload section doesn't need initial data loading
             break;
-        case 'chatbot':
-            initializeChatbot();
-            break;
         case 'profile':
             loadProfileData();
             break;
@@ -2020,17 +2047,59 @@ async function saveVolunteersToS3() {
     console.log('💾 Uploading updated volunteer list to S3...');
     
     try {
+        // Save full list (all statuses) to text-data bucket
         const params = {
             Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
             Key: 'volunteers/master_list.json',
             Body: JSON.stringify(volunteers, null, 2),
             ContentType: 'application/json'
         };
-
         await s3Client.upload(params).promise();
-        console.log('✅ Volunteers master list updated on S3');
+        console.log('✅ Full volunteer master list updated on S3 (tce-circular-text-data)');
+
+        // Also sync approved-only list to dedicated bucket
+        await saveApprovedVolunteersToS3();
+
     } catch (error) {
         console.error('❌ Failed to sync volunteers to S3:', error);
+    }
+}
+
+// Save ONLY approved volunteers to the dedicated 'approvedvolunteers' S3 bucket
+async function saveApprovedVolunteersToS3() {
+    if (!s3Client) {
+        console.error('❌ Cannot save approved list: S3 client not initialized');
+        return;
+    }
+
+    try {
+        // Filter only approved volunteers
+        const approvedList = volunteers.filter(v => v.status === 'approved').map(v => ({
+            id: v.id,
+            name: v.name,
+            email: v.email,
+            rollNumber: v.rollNumber || v.volunteerRoll || '',
+            department: v.department || '',
+            year: v.year || '',
+            club: v.club || '',
+            approvedAt: v.approvedAt,
+            approvedBy: v.approvedBy
+        }));
+
+        const params = {
+            Bucket: CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET,
+            Key: 'approved_list.json',
+            Body: JSON.stringify(approvedList, null, 2),
+            ContentType: 'application/json'
+        };
+
+        await s3Client.upload(params).promise();
+        console.log(`✅ Approved volunteers list saved to S3 bucket '${CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET}' (${approvedList.length} approved)`);
+        showToast(`Approved list synced to S3 (${approvedList.length} volunteers)`, 'success');
+
+    } catch (error) {
+        console.error('❌ Failed to save approved volunteers to S3:', error);
+        showToast('Warning: Could not sync approved list to S3. Check bucket permissions.', 'error');
     }
 }
 
@@ -4017,38 +4086,50 @@ function showVolunteerRequests(view = 'pending') {
                 <h3>Approved Volunteers List</h3>
             </div>
 
-            <div class="filters-container" style="display: flex; gap: 15px; margin: 20px 0;">
-                <div class="search-group" style="flex: 1; position: relative;">
-                    <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #95a5a6;"></i>
-                    <input type="text" id="searchApprovedVolunteers" placeholder="Search by name or email..." class="search-input" style="width: 100%; padding: 10px 10px 10px 40px; border: 1px solid #ddd; border-radius: 8px;">
+            <div class="filters-container" style="display:flex; gap:15px; margin:20px 0; align-items:flex-end;">
+                <div style="flex:1; position:relative;">
+                    <label style="display:block; font-size:0.8rem; font-weight:600; margin-bottom:6px; color:#555;">Search</label>
+                    <div style="position:relative;">
+                        <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#95a5a6; pointer-events:none;"></i>
+                        <input type="text" id="searchApprovedVolunteers" placeholder="Search by name or email..." class="search-input" style="width:100%; padding:10px 10px 10px 38px; border:2px solid #e8e0d8; border-radius:8px; font-size:0.9rem; outline:none;">
+                    </div>
                 </div>
                 <div class="filter-group">
-                    <select id="deptFilterApproved" class="filter-select" style="padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                    <label style="font-size:0.8rem; font-weight:600; margin-bottom:6px; color:#555;">Department</label>
+                    <select id="deptFilterApproved" class="filter-select" style="padding:10px 14px; border:2px solid #e8e0d8; border-radius:8px; font-size:0.9rem;">
                         <option value="all">All Departments</option>
                         <option value="cse">CSE</option>
-                        <option value="ece">ECE</option>
+                        <option value="it">IT</option>
+                        <option value="csbs">CSBS</option>
+                        <option value="ai">AI</option>
                         <option value="eee">EEE</option>
-                        <option value="mech">Mech</option>
+                        <option value="ece">ECE</option>
+                        <option value="mct">Mechatronics</option>
+                        <option value="mech">Mechanical</option>
                         <option value="civil">Civil</option>
+                        <option value="arch">Architecture</option>
+                        <option value="ds">Data Science</option>
                     </select>
                 </div>
             </div>
 
-            <div class="requests-table-container">
-                <table class="requests-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Roll Number</th>
-                            <th>Department</th>
-                            <th>Approval Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="approvedVolunteersTableBody">
-                        <!-- Dynamic content -->
-                    </tbody>
-                </table>
+            <div style="overflow-x:auto; width:100%;">
+                <div class="requests-table-container">
+                    <table class="requests-table" style="min-width:600px; width:100%; table-layout:auto;">
+                        <thead>
+                            <tr>
+                                <th style="white-space:nowrap;">Name</th>
+                                <th style="white-space:nowrap;">Roll Number</th>
+                                <th style="white-space:nowrap;">Department</th>
+                                <th style="white-space:nowrap;">Approval Date</th>
+                                <th style="white-space:nowrap;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approvedVolunteersTableBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     `;
@@ -4113,9 +4194,9 @@ function approveVolunteer(requestId) {
 
         localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
         
-        // Sync to AWS S3
+        // Sync full list to S3 and approved-only list to 'approvedvolunteers' bucket
         if (typeof saveVolunteersToS3 === 'function') {
-            saveVolunteersToS3();
+            saveVolunteersToS3(); // this internally calls saveApprovedVolunteersToS3()
         }
 
         // Create notification for the student
@@ -4857,6 +4938,54 @@ window.checkMyStatus = function () {
         console.log('📋 No volunteer request found');
     }
 
+
     return volunteer;
 };
+
+// S3 approvedvolunteers Bucket Diagnostic Tool
+window.diagnoseS3Upload = async function() {
+    console.log("🔍 Starting S3 upload diagnostic test...");
+    console.log("CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET:", CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET);
+    console.log("s3Client initialized:", !!s3Client);
+    
+    if (!s3Client) {
+        console.error("❌ S3 Client is not initialized.");
+        return;
+    }
+    
+    try {
+        console.log("Step 1: Checking AWS Credentials...");
+        await AWS.config.credentials.getPromise();
+        console.log("✅ Credentials loaded safely. Identity ID:", AWS.config.credentials.identityId);
+    } catch (credError) {
+        console.error("❌ Failed to load credentials from Cognito. Error:", credError);
+        return;
+    }
+    
+    try {
+        console.log("Step 2: Trying to upload a test file to '" + CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET + "'...");
+        const params = {
+            Bucket: CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET,
+            Key: "test_connection.txt",
+            Body: "Connection test from TCE Event Notice Board " + new Date().toISOString(),
+            ContentType: "text/plain"
+        };
+        const result = await s3Client.putObject(params).promise();
+        console.log("✅ Connection test file uploaded successfully! Result:", result);
+        console.log("🎉 S3 upload permissions and CORS are 100% correct!");
+    } catch (uploadError) {
+        console.error("❌ Connection test file upload FAILED!");
+        console.error("Code:", uploadError.code);
+        console.error("Message:", uploadError.message);
+        
+        if (uploadError.code === "AccessDenied") {
+            console.error("💡 Action required: S3 Bucket Policy or Cognito IAM Policy is blocking uploads. Please ensure CognitoS3UploadPolicy contains 'approvedvolunteers'.");
+        } else if (uploadError.code === "NetworkError" || uploadError.message.includes("Network Error")) {
+            console.error("💡 Action required: CORS policy is missing or blocking requests on 'approvedvolunteers' bucket.");
+        } else if (uploadError.code === "NoSuchBucket") {
+            console.error("💡 Action required: The bucket name does not exist. Double check if there is a spelling mistake in your bucket name.");
+        }
+    }
+};
+
 
