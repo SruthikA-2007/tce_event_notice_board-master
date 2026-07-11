@@ -1964,7 +1964,7 @@ async function loadVolunteersFromS3() {
     
     try {
         const params = {
-            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+            Bucket: CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET,
             Key: 'volunteers/master_list.json'
         };
 
@@ -2051,27 +2051,50 @@ async function loadVolunteersFromS3() {
 async function saveVolunteersToS3() {
     if (!s3Client) {
         console.error('❌ Cannot save to S3: client not initialized');
+        showToast('⚠️ Cloud sync unavailable: AWS not ready. Request saved locally only.', 'warning');
         return;
     }
 
     console.log('💾 Uploading updated volunteer list to S3...');
     
     try {
-        // Save full list (all statuses) to text-data bucket
+        // Ensure credentials are fresh before uploading
+        try {
+            await AWS.config.credentials.getPromise();
+            console.log('✅ AWS credentials refreshed, Identity ID:', AWS.config.credentials.identityId);
+        } catch (credErr) {
+            console.error('❌ AWS credential refresh failed:', credErr);
+            showToast('⚠️ AWS authentication failed. Request saved locally — may not appear in admin portal.', 'error');
+            return;
+        }
+
+        // Save full list (all statuses) to approvedvolunteers bucket
         const params = {
-            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+            Bucket: CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET,
             Key: 'volunteers/master_list.json',
             Body: JSON.stringify(volunteers, null, 2),
             ContentType: 'application/json'
         };
         await s3Client.upload(params).promise();
-        console.log('✅ Full volunteer master list updated on S3 (tce-circular-text-data)');
+        console.log(`✅ Full volunteer master list updated on S3 (${CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET})`);
 
         // Also sync approved-only list to dedicated bucket
         await saveApprovedVolunteersToS3();
 
     } catch (error) {
         console.error('❌ Failed to sync volunteers to S3:', error);
+        console.error('   Error code:', error.code);
+        console.error('   Error message:', error.message);
+        
+        if (error.code === 'AccessDenied' || error.code === 'AccessDeniedException') {
+            showToast(`❌ S3 permission denied. Check IAM/Cognito policy includes ${CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET} bucket.`, 'error');
+        } else if (error.code === 'NetworkingError' || error.message?.includes('Network')) {
+            showToast(`❌ CORS error: S3 bucket '${CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET}' CORS policy may be missing. Request saved locally only.`, 'error');
+        } else if (error.code === 'NoSuchBucket') {
+            showToast(`❌ S3 bucket '${CONFIG.S3_APPROVED_VOLUNTEERS_BUCKET}' not found. Check bucket name configuration.`, 'error');
+        } else {
+            showToast('⚠️ Request saved locally but cloud sync failed: ' + (error.code || error.message), 'warning');
+        }
     }
 }
 
@@ -3750,6 +3773,21 @@ function submitVolunteerRequest(formData) {
             return;
         }
 
+        // Validate required fields
+        const name = formData.get('volunteerName');
+        const roll = formData.get('volunteerRoll');
+        const phone = formData.get('volunteerPhone');
+        const department = formData.get('volunteerDepartment');
+        const year = formData.get('volunteerYear');
+        const club = formData.get('volunteerClub');
+        const reason = formData.get('volunteerReason');
+
+        if (!name || !roll || !phone || !department || !year || !club || !reason) {
+            showToast('Please fill in all required fields before submitting.', 'error');
+            console.error('❌ Missing required fields:', { name, roll, phone, department, year, club, reason });
+            return;
+        }
+
         let application;
 
         if (existingRequest && (existingRequest.status === 'rejected' || existingRequest.status === 'approved')) {
@@ -3764,46 +3802,54 @@ function submitVolunteerRequest(formData) {
             // Create new application
             application = {
                 id: Date.now().toString(),
-                name: formData.get('volunteerName') || currentUser.name,
+                name: name || currentUser.name,
                 email: currentUser.email,
-                rollNumber: formData.get('volunteerRoll'),
-                phone: formData.get('volunteerPhone'),
-                department: formData.get('volunteerDepartment'),
-                year: formData.get('volunteerYear'),
-                club: formData.get('volunteerClub'),
-                reason: formData.get('volunteerReason'),
+                rollNumber: roll,
+                phone: phone,
+                department: department,
+                year: year,
+                club: club,
+                reason: reason,
                 status: 'pending',
                 appliedAt: new Date().toISOString(),
                 rejectionReason: null
             };
             volunteers.push(application);
         }
-        localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
-        
-        // Sync to AWS S3
-        if (typeof saveVolunteersToS3 === 'function') {
-            saveVolunteersToS3();
-        }
 
+        // Save to localStorage immediately (works offline)
+        localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUNTEERS, JSON.stringify(volunteers));
         console.log('💾 Saved volunteers to localStorage:', volunteers.length);
 
         const successMessage = existingRequest && existingRequest.status === 'rejected'
-            ? 'Application resubmitted successfully! Your updated request is now pending admin approval.'
-            : 'Application submitted successfully! Waiting for admin approval.';
-
+            ? 'Application resubmitted! Syncing to cloud...'
+            : 'Application submitted! Syncing to cloud for admin review...';
         showToast(successMessage, 'success');
 
-        // Reset form
+        // Reset form and update UI
         document.getElementById('volunteerForm').reset();
         document.getElementById('volunteerRequestForm').classList.add('hidden');
-
-        // Update status to show "Pending" and keep user on volunteer section
         updateVolunteerStatus();
+
+        // Sync to AWS S3 asynchronously — wait for credentials if needed
+        const attemptS3Sync = () => {
+            if (s3Client) {
+                console.log('☁️ Attempting S3 sync for volunteer request...');
+                saveVolunteersToS3().then(() => {
+                    console.log('✅ Volunteer request synced to S3 successfully');
+                }).catch(err => {
+                    console.error('❌ S3 sync failed:', err);
+                });
+            } else {
+                console.warn('⚠️ S3 client not ready, retrying in 3 seconds...');
+                setTimeout(attemptS3Sync, 3000);
+            }
+        };
+        attemptS3Sync();
 
         // Ensure user stays on volunteer section and updates immediately
         setTimeout(() => {
             navigateToSection('volunteer');
-            // Force update of volunteer status one more time to ensure UI is current
             updateVolunteerStatus();
             console.log('✅ Volunteer form submission completed successfully');
         }, 500);
@@ -4379,9 +4425,18 @@ function updateAdminStats() {
     const pending = volunteers.filter(v => v.status === 'pending').length;
     const uploads = JSON.parse(localStorage.getItem('volunteer_uploads') || '[]').length;
 
-    document.getElementById('approvedVolunteers').textContent = approved;
-    document.getElementById('pendingRequests').textContent = pending;
-    document.getElementById('totalUploads').textContent = uploads;
+    // Safely update elements — they may not exist in all views
+    const approvedEl = document.getElementById('approvedVolunteers');
+    const pendingEl = document.getElementById('pendingRequests');
+    const uploadsEl = document.getElementById('totalUploads');
+    const volunteerCountEl = document.getElementById('volunteerCount');
+
+    if (approvedEl) approvedEl.textContent = approved;
+    if (pendingEl) pendingEl.textContent = pending;
+    if (uploadsEl) uploadsEl.textContent = uploads;
+    if (volunteerCountEl) volunteerCountEl.textContent = approved;
+
+    console.log('📊 Admin stats updated: approved=' + approved + ', pending=' + pending);
 }
 
 // Modal Functionality

@@ -2,16 +2,45 @@
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "AllowRawDataBucket",
             "Effect": "Allow",
             "Action": [
                 "s3:PutObject",
                 "s3:PutObjectAcl",
                 "s3:GetObject",
+                "s3:DeleteObject",
                 "s3:ListBucket"
             ],
             "Resource": [
                 "arn:aws:s3:::tce-circular-raw-data",
                 "arn:aws:s3:::tce-circular-raw-data/*"
+            ]
+        },
+        {
+            "Sid": "AllowTextDataBucket",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::tce-circular-text-data",
+                "arn:aws:s3:::tce-circular-text-data/*"
+            ]
+        },
+        {
+            "Sid": "AllowApprovedVolunteersBucket",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::approvedvolunteers",
+                "arn:aws:s3:::approvedvolunteers/*"
             ]
         }
     ]
