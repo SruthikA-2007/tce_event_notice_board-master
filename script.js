@@ -99,6 +99,12 @@ function extractS3Key(notice) {
     return null;
 }
 
+function extractEventId(s3Key) {
+    if (!s3Key) return null;
+    const match = s3Key.match(/(event_\d+)/);
+    return match ? match[1] : null;
+}
+
 function getFreshImageUrl(notice) {
     const s3Key = extractS3Key(notice);
     if (s3Key) {
@@ -1429,7 +1435,6 @@ function createVolunteerNotification(studentEmail, action, studentName, reason =
 
     console.log(`📬 Created ${action} notification for ${studentEmail}:`, notification);
 }
-
 async function deleteUpload(uploadId) {
     console.log('🗑️ Starting delete for uploadId:', uploadId);
     if (!confirm('Are you sure you want to delete this upload?')) return;
@@ -1439,9 +1444,11 @@ async function deleteUpload(uploadId) {
         const upload = uploads.find(u => u.id === uploadId);
 
         console.log('🗑️ Found upload to delete:', upload);
+        if (!upload) return;
 
-        if (upload.s3Key) {
-            console.log('🗑️ Attempting to delete from S3:', upload.s3Key);
+        const activeS3Key = upload.s3Key || (upload.fileUrl ? extractS3Key({ imageUrl: upload.fileUrl }) : null);
+        if (activeS3Key) {
+            console.log('🗑️ Attempting to delete from S3:', activeS3Key);
             console.log('🗑️ Bucket:', CONFIG.S3_BUCKET_NAME);
 
             // Delete from S3 with error handling
@@ -1449,7 +1456,7 @@ async function deleteUpload(uploadId) {
                 await new Promise((resolve, reject) => {
                     s3Client.deleteObject({
                         Bucket: CONFIG.S3_BUCKET_NAME,
-                        Key: upload.s3Key
+                        Key: activeS3Key
                     }, (err, data) => {
                         if (err) {
                             console.error('🔴 S3 delete error:', err);
@@ -1462,108 +1469,50 @@ async function deleteUpload(uploadId) {
                 });
                 console.log('🗑️ S3 file deleted successfully');
             } catch (s3Error) {
-                console.error('🔴 Failed to delete from S3:', s3Error);
-                showToast('Warning: Could not delete file from cloud, but removed from local listings', 'warning');
+                console.error('🔴 Failed to delete from S3 (silenced error):', s3Error);
+            }
+
+            // Save to local deletion shadow registry to guarantee it never reappears
+            try {
+                const deleted = JSON.parse(localStorage.getItem('tce_deleted_notices') || '[]');
+                if (!deleted.includes(activeS3Key)) {
+                    deleted.push(activeS3Key);
+                    localStorage.setItem('tce_deleted_notices', JSON.stringify(deleted));
+                }
+            } catch (e) {
+                console.error('Error saving deleted notice state:', e);
             }
 
             // Also try to delete associated metadata and text files
             try {
-                const baseFileName = upload.s3Key.replace(/\.[^/.]+$/, ''); // Remove extension
-                const metadataKey = `${baseFileName}.json`;
-                const textKey = `${baseFileName}.txt`;
+                const eventId = extractEventId(activeS3Key);
+                if (eventId) {
+                    const metadataKey = `${eventId}.json`;
+                    const textKey = `${eventId}.txt`;
 
-                // Delete metadata file from text-data bucket
-                await new Promise((resolve) => {
-                    s3Client.deleteObject({
-                        Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
-                        Key: metadataKey
-                    }, () => resolve());
-                });
+                    // Delete metadata file from text-data bucket
+                    await new Promise((resolve) => {
+                        s3Client.deleteObject({
+                            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+                            Key: metadataKey
+                        }, () => resolve());
+                    });
 
-                // Delete text file from text bucket
-                await new Promise((resolve) => {
-                    s3Client.deleteObject({
-                        Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
-                        Key: textKey
-                    }, () => resolve());
-                });
+                    // Delete text file from text bucket
+                    await new Promise((resolve) => {
+                        s3Client.deleteObject({
+                            Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+                            Key: textKey
+                        }, () => resolve());
+                    });
 
-                console.log('🗑️ Associated metadata and text files deleted');
+                    console.log('🗑️ Associated metadata and text files deleted');
+                }
             } catch (metaError) {
                 console.log('🗑️ Could not delete associated files (may not exist):', metaError);
             }
         } else {
             console.log('🗑️ No S3 key found, skipping S3 deletion');
-        }
-
-        // Also try to find and delete by imageUrl if available
-        if (upload.fileUrl && upload.fileUrl.includes(CONFIG.S3_BUCKET_NAME)) {
-            try {
-                const urlKey = upload.fileUrl.split('/').pop();
-                console.log('🗑️ Also attempting to delete by URL key:', urlKey);
-
-                await new Promise((resolve) => {
-                    s3Client.deleteObject({
-                        Bucket: CONFIG.S3_BUCKET_NAME,
-                        Key: urlKey
-                    }, () => resolve());
-                });
-            } catch (urlError) {
-                console.log('🗑️ Could not delete by URL key (may already be deleted):', urlError);
-            }
-        }
-
-        // Fallback: Try to find and delete the file by searching S3
-        if (!upload.s3Key || !upload.s3Key.startsWith('event_')) {
-            console.log('🔍 No valid S3 key found, searching for file by pattern...');
-            try {
-                // List objects to find matching file
-                const listParams = {
-                    Bucket: CONFIG.S3_BUCKET_NAME,
-                    Prefix: 'event_',
-                    MaxKeys: 1000
-                };
-
-                const listData = await new Promise((resolve, reject) => {
-                    s3Client.listObjectsV2(listParams, (err, data) => {
-                        if (err) reject(err);
-                        else resolve(data);
-                    });
-                });
-
-                // Find files uploaded by this user around the upload date
-                const uploadDate = new Date(upload.uploadDate);
-                const uploadTimestamp = uploadDate.getTime();
-
-                const matchingFiles = listData.Contents.filter(obj => {
-                    if (obj.Key.endsWith('/')) return false; // Skip folders
-
-                    // Try to extract timestamp from filename
-                    const timestampMatch = obj.Key.match(/event_(\d+)_/);
-                    if (!timestampMatch) return false;
-
-                    const fileTimestamp = parseInt(timestampMatch[1]);
-                    const timeDiff = Math.abs(fileTimestamp - uploadTimestamp);
-
-                    // Consider files uploaded within 5 minutes as potential matches
-                    return timeDiff < 300000; // 5 minutes in milliseconds
-                });
-
-                console.log('🔍 Found potential matching files:', matchingFiles);
-
-                // Delete matching files
-                for (const file of matchingFiles) {
-                    await new Promise((resolve) => {
-                        s3Client.deleteObject({
-                            Bucket: CONFIG.S3_BUCKET_NAME,
-                            Key: file.Key
-                        }, () => resolve());
-                    });
-                    console.log('🗑️ Deleted matching file:', file.Key);
-                }
-            } catch (searchError) {
-                console.log('🔍 Could not search S3 for matching files:', searchError);
-            }
         }
 
         // Also remove from main notices list
@@ -1595,9 +1544,6 @@ async function deleteUpload(uploadId) {
         showToast('Failed to delete upload', 'error');
     }
 }
-
-
-
 function navigateToSection(sectionId) {
     // Update navigation
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -2248,7 +2194,6 @@ async function loadNoticesFromS3() {
         return [];
     }
 }
-
 // Notices Management
 async function loadNotices() {
     const container = document.getElementById('noticesContainer');
@@ -2257,10 +2202,15 @@ async function loadNotices() {
     }
 
     try {
+        const deletedNotices = JSON.parse(localStorage.getItem('tce_deleted_notices') || '[]');
+
         // First load from localStorage
         const storedNotices = localStorage.getItem(CONFIG.STORAGE_KEYS.NOTICES);
         if (storedNotices) {
-            notices = JSON.parse(storedNotices);
+            notices = JSON.parse(storedNotices).filter(notice => {
+                const key = extractS3Key(notice);
+                return !deletedNotices.includes(key) && !deletedNotices.includes(notice.id);
+            });
 
             // Always regenerate presigned URLs for ALL S3-backed notices on load.
             // Presigned URLs expire after 24 hours; without refresh images disappear.
@@ -2280,10 +2230,15 @@ async function loadNotices() {
         }
 
         // Then try to load from S3
-        const s3Notices = await loadNoticesFromS3();
+        let s3Notices = await loadNoticesFromS3();
 
         // Merge S3 and local notices with robust deduplication
         if (s3Notices.length > 0) {
+            s3Notices = s3Notices.filter(notice => {
+                const key = extractS3Key(notice);
+                return !deletedNotices.includes(key) && !deletedNotices.includes(notice.id);
+            });
+
             const allNotices = [...s3Notices, ...notices]; // Prefer S3 version (more recent/official)
             notices = allNotices.filter((notice, index, self) =>
                 index === self.findIndex(n => 
@@ -2293,7 +2248,6 @@ async function loadNotices() {
                 )
             ).sort((a, b) => new Date(b.date) - new Date(a.date));
         }
-
         // If still no notices, load mock data
         if (notices.length === 0) {
             notices = await loadMockNotices();
@@ -2348,38 +2302,6 @@ function renderNotices() {
             </div>
         </div>
     `).join('');
-}
-
-async function deleteNotice(noticeId) {
-    if (!confirm('Are you sure you want to delete this notice? This action cannot be undone.')) {
-        return;
-    }
-
-    try {
-        const index = notices.findIndex(n => n.id === noticeId);
-        if (index === -1) return;
-
-        const notice = notices[index];
-        console.log('🗑️ Deleting notice:', notice.title);
-
-        // Remove from local array
-        notices.splice(index, 1);
-        
-        // Update localStorage
-        localStorage.setItem(CONFIG.STORAGE_KEYS.NOTICES, JSON.stringify(notices));
-
-        // Note: For a real S3 implementation, we would also call s3Client.deleteObject here
-        // For now, we update the local view immediately
-        renderNotices();
-        updateDashboardStats();
-        updateLatestNotices();
-        
-        showToast('Notice deleted successfully', 'success');
-
-    } catch (error) {
-        console.error('Error deleting notice:', error);
-        showToast('Failed to delete notice', 'error');
-    }
 }
 
 function filterNotices() {
@@ -4556,21 +4478,62 @@ async function downloadNotice() {
     }
 }
 
+
+
 function deleteNotice(noticeId) {
     if (!confirm('Are you sure you want to delete this notice?')) return;
 
     const notice = notices.find(n => n.id === noticeId);
     if (!notice) return;
 
-    // Delete from S3 if it has an S3 key
-    if (notice.imageUrl && notice.imageUrl.includes('amazonaws.com')) {
-        const s3Key = notice.imageUrl.split('/').pop();
+    const s3Key = extractS3Key(notice);
+    if (s3Key) {
+        console.log('🗑️ S3 key to delete:', s3Key);
+
+        // Save to local deletion shadow registry to guarantee it never reappears
+        try {
+            const deleted = JSON.parse(localStorage.getItem('tce_deleted_notices') || '[]');
+            if (!deleted.includes(s3Key)) {
+                deleted.push(s3Key);
+                localStorage.setItem('tce_deleted_notices', JSON.stringify(deleted));
+            }
+        } catch (e) {
+            console.error('Error saving deleted notice state:', e);
+        }
+
         s3Client.deleteObject({
             Bucket: CONFIG.S3_BUCKET_NAME,
             Key: s3Key
         }, (err) => {
-            if (err) console.error('Error deleting from S3:', err);
+            if (err) {
+                console.error('Error deleting image from S3 (silenced):', err);
+            } else {
+                console.log('Successfully deleted image from S3');
+            }
         });
+
+        // Also delete associated metadata and text files
+        try {
+            const eventId = extractEventId(s3Key);
+            if (eventId) {
+                const metadataKey = `${eventId}.json`;
+                const textKey = `${eventId}.txt`;
+                s3Client.deleteObject({
+                    Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+                    Key: metadataKey
+                }, (err) => {
+                    if (err) console.error('Error deleting metadata from S3:', err);
+                });
+                s3Client.deleteObject({
+                    Bucket: CONFIG.S3_TEXT_BUCKET_NAME,
+                    Key: textKey
+                }, (err) => {
+                    if (err) console.error('Error deleting text file from S3:', err);
+                });
+            }
+        } catch (e) {
+            console.error('Error deleting associated files:', e);
+        }
     }
 
     // Remove from notices array
